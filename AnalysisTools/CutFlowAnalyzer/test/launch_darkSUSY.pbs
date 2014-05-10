@@ -1,0 +1,31 @@
+#PBS -l nodes=1:ppn=8
+#PBS -l walltime=12:00:00,mem=2gb,vmem=4gb
+#PBS -q bgscrt
+
+##Job settings
+#PBS -N cmsRun
+#PBS -o job_darkSUSY_${PBS_JOBID}.out
+#PBS -e job_darkSUSY_${PBS_JOBID}.err
+#PBS -m abe
+#PBS -M anthonykrose@gmail.com
+
+CMSSWDIR=/home/anthony.rose/Analysis/CMSSW_5_3_11_patch5/src
+
+cd $CMSSWDIR
+export SCRAM_ARCH=slc5_amd64_gcc462
+eval `scramv1 runtime -sh`
+cd -
+export JOB_NUM=0
+cmsRun $CMSSWDIR/AnalysisTools/CutFlowAnalyzer/test/cutflowanalyzer_cfg_condor.py &
+wait_command_pid=`jobs -l | awk '/cmsRun/{print $2}'`
+echo $wait_command_pid
+ps ux
+ls -l
+cp *.log $CMSSWDIR/AnalysisTools/CutFlowAnalyzer/test/logfiles/
+cp *.root $CMSSWDIR/AnalysisTools/CutFlowAnalyzer/test/output/
+wait
+exit 0
+
+
+
+

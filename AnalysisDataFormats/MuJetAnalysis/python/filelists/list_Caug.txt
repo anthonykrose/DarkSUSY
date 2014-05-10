@@ -1,0 +1,7 @@
+/pnfs/cms/WAX/11/store/user/castaned/data/Data_2012/May2013/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/castaned/MuOnia/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/3d9f3c5e442c35f5811e3745bc8eb717/output_1_1_DfI.root
+/pnfs/cms/WAX/11/store/user/castaned/data/Data_2012/May2013/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/castaned/MuOnia/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/3d9f3c5e442c35f5811e3745bc8eb717/output_2_1_mGM.root
+/pnfs/cms/WAX/11/store/user/castaned/data/Data_2012/May2013/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/castaned/MuOnia/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/3d9f3c5e442c35f5811e3745bc8eb717/output_3_1_715.root
+/pnfs/cms/WAX/11/store/user/castaned/data/Data_2012/May2013/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/castaned/MuOnia/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/3d9f3c5e442c35f5811e3745bc8eb717/output_4_1_9Fi.root
+/pnfs/cms/WAX/11/store/user/castaned/data/Data_2012/May2013/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/castaned/MuOnia/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/3d9f3c5e442c35f5811e3745bc8eb717/output_5_1_g2J.root
+/pnfs/cms/WAX/11/store/user/castaned/data/Data_2012/May2013/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/castaned/MuOnia/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/3d9f3c5e442c35f5811e3745bc8eb717/output_6_1_44l.root
+/pnfs/cms/WAX/11/store/user/castaned/data/Data_2012/May2013/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/castaned/MuOnia/MuOnia_Run2012C-24Aug2012-4MuonpT35_PATv1/3d9f3c5e442c35f5811e3745bc8eb717/output_7_1_lfa.root

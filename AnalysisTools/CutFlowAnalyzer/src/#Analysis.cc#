@@ -1,0 +1,2297 @@
+// System include files
+#include <memory>
+
+// user include files
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Framework/interface/EDAnalyzer.h"
+
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+
+// user include files
+#include "TTree.h"
+#include "TRandom3.h"
+#include "TMath.h"
+
+
+#include "DataFormats/Math/interface/LorentzVector.h"
+#include "DataFormats/Common/interface/TriggerResults.h"
+#include "FWCore/Common/interface/TriggerNames.h"
+#include "FWCore/Framework/interface/TriggerReport.h"
+#include "FWCore/Framework/interface/TriggerNamesService.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+#include "DataFormats/Candidate/interface/Candidate.h"
+#include "DataFormats/DetId/interface/DetId.h"
+#include "DataFormats/GeometrySurface/interface/Cylinder.h"
+#include "DataFormats/GeometrySurface/interface/Plane.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/MuonReco/interface/MuonChamberMatch.h"
+#include "DataFormats/MuonReco/interface/Muon.h"
+#include "DataFormats/MuonReco/interface/MuonSegmentMatch.h"
+#include "DataFormats/PatCandidates/interface/Muon.h"
+#include "DataFormats/PatCandidates/interface/TriggerEvent.h"
+#include "DataFormats/TrackingRecHit/interface/TrackingRecHit.h"
+#include "DataFormats/TrackReco/interface/HitPattern.h"
+#include "DataFormats/TrackReco/interface/TrackFwd.h"
+#include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "FWCore/Framework/interface/EDAnalyzer.h"
+#include "FWCore/Framework/interface/ESHandle.h"
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "FWCore/Utilities/interface/InputTag.h"
+#include "Geometry/CommonDetUnit/interface/GlobalTrackingGeometry.h"
+#include "Geometry/CommonTopologies/interface/PixelTopology.h"
+#include "Geometry/Records/interface/GlobalTrackingGeometryRecord.h"
+#include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
+#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
+#include "MagneticField/Engine/interface/MagneticField.h"
+#include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
+#include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
+#include "TrackingTools/GeomPropagators/interface/Propagator.h"
+#include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
+#include "TrackingTools/TrajectoryState/interface/FreeTrajectoryState.h"
+#include "TrackingTools/TrajectoryState/interface/TrajectoryStateOnSurface.h"
+#include "TrackPropagation/SteppingHelixPropagator/interface/SteppingHelixPropagator.h"
+
+#include "AnalysisDataFormats/MuJetAnalysis/interface/MultiMuon.h"
+#include "HLTrigger/HLTcore/interface/HLTConfigProvider.h"
+#include "AnalysisDataFormats/MuJetAnalysis/src/eig3.cpp"
+#include "AnalysisDataFormats/MuJetAnalysis/interface/eig3.h"
+
+using namespace math;
+
+
+//******************************************************************************
+//              Auxiliary function: Order objects by pT                         
+//******************************************************************************
+bool PtOrder (const reco::GenParticle* p1, const reco::GenParticle* p2) { return (p1->pt() > p2->pt() ); }
+bool PtOrderrec (const reco::Muon* p1, const reco::Muon* p2) { return (p1->pt() > p2->pt() ); }
+
+//******************************************************************************
+// Auxiliary function: Calculate difference between two angles: -PI < phi < PI  
+//******************************************************************************
+double My_dPhi (double phi1, double phi2) {
+  double dPhi = phi1 - phi2;
+  if (dPhi >  M_PI) dPhi -= 2.*M_PI;
+  if (dPhi < -M_PI) dPhi += 2.*M_PI;
+  return dPhi;
+}
+
+//******************************************************************************
+//                           Class declaration                                  
+//******************************************************************************
+
+class Analysis : public edm::EDAnalyzer {
+public:
+  explicit Analysis(const edm::ParameterSet&);
+  ~Analysis();
+
+  static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
+
+
+private:
+
+  virtual void beginJob() ;
+  virtual void analyze(const edm::Event&, const edm::EventSetup&);
+  virtual void endJob() ;
+
+  virtual void beginRun(edm::Run const&, edm::EventSetup const&);
+  virtual void endRun(edm::Run const&, edm::EventSetup const&);
+  virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+  virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+      
+  // ---------- Member data ----------
+  
+  TTree * AnaTree;  // Pointer to Tree
+  
+  Int_t run;    // run number    
+  Int_t lumi;   // lumi number   
+  Int_t event;  // event number  
+  Int_t trigger;
+  Int_t isVtx;
+
+  // ---------- Generator Level ----------
+  
+  edm::InputTag m_genParticles;   // Label to access generator particles
+  
+
+  // Gen branches in ROOT tree
+
+  // ---------- GEN level ---------------
+
+  Int_t genmuons;
+  Int_t gengamD;
+  Int_t genHiggs;
+
+  Float_t ptgenMuons[10];
+  Float_t etagenMuons[10];
+
+  Float_t ptgenMuonsA0[5];
+  Float_t ptgenMuonsA1[5];
+  Float_t etagenMuonsA0[5];
+  Float_t etagenMuonsA1[5];
+  Float_t ptgengamD[5];
+  Float_t ptgenHiggs[5];
+
+  Float_t gen_match_dzmj1;
+  Float_t gen_match_dzmj2;
+  Float_t gen_match_massmj1;
+  Float_t gen_match_massmj2;
+
+  Float_t gen_mismatch_dzmj1;
+  Float_t gen_mismatch_dzmj2;
+  Float_t gen_mismatch_massmj1;
+  Float_t gen_mismatch_massmj2;
+
+  Float_t gen_match_chi2mj1;
+  Float_t gen_match_chi2mj2;
+  Float_t gen_mismatch_chi2mj1;
+  Float_t gen_mismatch_chi2mj2;
+
+
+  // ---------- RECO Level ----------
+  
+  Int_t recmuons;
+  Float_t ptrecMuons[30];
+  Float_t etarecMuons[30];
+
+  Int_t recmujets;
+  Int_t mj1muons;
+  Int_t mj2muons;
+  Float_t ptmj1muons[4];
+  Float_t ptmj2muons[4];
+  Float_t etamj1muons[4];
+  Float_t etamj2muons[4];
+
+  Float_t dzmj1;
+  Float_t dzmj2;
+
+  Float_t massmj1;
+  Float_t massmj2;
+
+  Float_t isomj1;
+  Float_t isomj2;
+
+  Float_t reco_match_dzmj1;
+  Float_t reco_match_dzmj2;
+
+
+  // Labels to access
+  edm::InputTag m_muons;  // reconstructed muons
+  edm::InputTag m_muJets; // muon jets built from reconstructed muons
+
+  // Auxiliary variables
+  TRandom3 m_trandom3;
+
+};
+
+//
+// constants, enums and typedefs
+//
+
+//
+// static data member definitions
+//
+
+//
+// constructors and destructor
+//
+Analysis::Analysis(const edm::ParameterSet& iConfig)
+
+{
+
+  
+  genmuons=0;
+  gengamD=0;
+  genHiggs=0;
+  recmujets=0;
+  mj1muons=0;
+  mj2muons=0;
+  genmuons=0;
+  recmuons=0;
+  dzmj1=0.;
+  dzmj2=0.;
+  massmj1=0.0;
+  massmj2=0.0;
+  isomj1=0.0;
+  isomj2=0.0;
+  isVtx=0;
+
+  gen_match_dzmj1=0.;
+  gen_match_dzmj2=0.;
+  gen_match_massmj1=0.0;
+  gen_match_massmj2=0.0;
+  gen_match_chi2mj1=0.0;
+  gen_match_chi2mj2=0.0;
+  gen_mismatch_dzmj1=0.;
+  gen_mismatch_dzmj2=0.;
+  gen_mismatch_massmj1=0.0;
+  gen_mismatch_massmj2=0.0;
+  gen_mismatch_chi2mj1=0.0;
+  gen_mismatch_chi2mj2=0.0;
+
+  reco_match_dzmj1=0.;
+  reco_match_dzmj2=0.;
+
+
+
+  AnaTree  = NULL;    
+  
+  // ---------- Generator Level ----------
+  m_genParticles = iConfig.getParameter<edm::InputTag>("genParticles");
+  
+  
+  // ---------- RECO Level ----------
+  m_muons = iConfig.getParameter<edm::InputTag>("muons");
+  m_muJets = iConfig.getParameter<edm::InputTag>("muJets");
+
+
+  //  m_maxIsoDiMuons  = iConfig.getParameter<double>("maxIsoDiMuons");
+
+}
+
+
+Analysis::~Analysis()
+{
+ 
+  // do anything here that needs to be done at desctruction time
+  // (e.g. close files, deallocate resources etc.)
+
+}
+
+//
+// member functions
+//
+
+// ------------ method called for each event  ------------
+void
+Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
+{
+  using namespace edm;
+
+  // get the run, lumi and event number
+  run   = iEvent.id().run();
+  lumi  = iEvent.id().luminosityBlock();
+  event = iEvent.id().event();
+
+  if (event !=20422 ) return ;
+
+  // if (event != 39995) return;
+
+  //event != 20138 && 
+
+  // std::cout << std::endl << "run: " << run << ", lumi: " << lumi << ", event: " << event << std::endl;
+
+
+  //****************************************************************************
+  //                              GEN LEVEL                                     
+  //****************************************************************************
+  
+  edm::Handle<reco::GenParticleCollection> genParticles;
+  iEvent.getByLabel(m_genParticles, genParticles);
+  
+  // Loop over all genParticles and save prompt muons from particles with codes 36 (a1) or 3000022 (gammaD) in vector genMuons
+  std::vector<const reco::GenParticle*> genH;
+  std::vector<const reco::GenParticle*> genA;
+  std::vector<const reco::GenParticle*> genMuons;
+  std::vector<const reco::Candidate*>   genMuonMothers;
+
+  // Loop over all gen particles
+  int counterGenParticle = 0;
+  for(reco::GenParticleCollection::const_iterator iGenParticle = genParticles->begin();  iGenParticle != genParticles->end();  ++iGenParticle) {
+    counterGenParticle++;
+    
+    if ( fabs( iGenParticle->pdgId() ) == 13 && iGenParticle->status() == 1 ) {
+      // Mother of the muon can be muon. Find the last muon in this chain: genMuonCand
+      // Example: a1 -> mu+ (status = 3) mu- (status = 3)
+      //          mu- (status = 3) -> mu- (status = 2) -> mu- (status = 1)
+      const reco::Candidate *genMuonCand = &(*iGenParticle);
+      bool isMuonMother = true;
+      while(isMuonMother) {
+        isMuonMother = false;
+        for ( size_t iMother = 0; iMother < genMuonCand->numberOfMothers(); iMother++ ) {
+          if ( fabs( genMuonCand->mother(iMother)->pdgId() ) == 13 ) {
+            isMuonMother = true;
+            genMuonCand = genMuonCand->mother(iMother);
+          }
+        }
+      }
+      // Loop over all real (non-muon) mothers of the muon (here we use genMuonCand)
+      for ( size_t iMother = 0; iMother < genMuonCand->numberOfMothers(); iMother++ ) {
+        // Check if mother is CP-odd Higgs (PdgId = 36) or gamma_Dark (PdgId = 3000022)
+        if ( genMuonCand->mother(iMother)->pdgId() == 36 || genMuonCand->mother(iMother)->pdgId() == 3000022 || genMuonCand->mother(iMother)->pdgId() == 443 ) {
+          // Store the muon (stable, first in chain) into vector
+          genMuons.push_back(&(*iGenParticle));
+	  // 	  std::cout << "genMuon pt: " << genMuonCand->pt() << std::endl;
+	  // 	  std::cout << "genMuon mother pt: " << genMuonCand->mother(iMother)->pt() << std::endl; 
+          // Store mother of the muon into vector. We need this to group muons into dimuons later
+          genMuonMothers.push_back(genMuonCand->mother(iMother));
+        }
+      }
+    }
+
+    // Check if gen particle is decaying (status = 3) CP-even Higgs (pdgId = +/-35)
+    if ( iGenParticle->status() == 3 && iGenParticle->pdgId() == 35 ) {
+      genH.push_back(&(*iGenParticle)); // Store the Higgs into vector
+    }
+    // Check if gen particle is
+    if (    ( iGenParticle->status() == 3 && iGenParticle->pdgId() == 36      )     // decaying (status = 3) CP-odd Higgs (pdgId = 36)
+	    || ( iGenParticle->status() == 3 && iGenParticle->pdgId() == 3000022 )     // decaying (status = 3) gamma_Dark (pdgId = 3000022)
+	    || ( iGenParticle->status() == 2 && iGenParticle->pdgId() == 443     ) ) { // decaying (status = 2) J/psi (pdgId = 443)
+      genA.push_back(&(*iGenParticle));
+    }
+  }
+  
+
+  genmuons = genMuons.size();
+  gengamD  = genA.size();
+  genHiggs = genH.size();
+
+
+  
+  // Group muons from the same mother into dimuons
+  std::vector< std::vector<const reco::GenParticle*> > genMuonGroups;
+  std::vector<const reco::GenParticle*> genMuonsTMP1       = genMuons;
+  std::vector<const reco::Candidate*>   genMuonMothersTMP1 = genMuonMothers;
+  unsigned int nMuonGroup = 0;
+  while ( genMuonsTMP1.size() > 0 ) {
+    std::vector<const reco::GenParticle*> genMuonsTMP2;
+    std::vector<const reco::Candidate*>   genMuonMothersTMP2;
+    std::vector<const reco::GenParticle*> genMuonsSameMother;
+    for ( unsigned int j = 0; j < genMuonsTMP1.size(); j++ ) {
+      // Check if mothers are the same particle
+      if ( fabs( genMuonMothersTMP1[0]->pt() - genMuonMothersTMP1[j]->pt() ) < 0.00001 ) {
+	genMuonsSameMother.push_back( genMuonsTMP1[j] );
+      } else {
+	genMuonsTMP2.push_back( genMuonsTMP1[j] );
+	genMuonMothersTMP2.push_back( genMuonMothersTMP1[j] );
+      }
+    }
+    genMuonGroups.push_back(genMuonsSameMother);
+    genMuonsTMP1       = genMuonsTMP2;
+    genMuonMothersTMP1 = genMuonMothersTMP2;
+    nMuonGroup++;
+  }
+
+
+
+  std::sort( genMuons.begin(), genMuons.end(), PtOrder );
+  //   if (genmuons) std::cout<<" gen muons "<<genmuons<<std::endl;
+  // std::cout<<" gen gammaD "<<gengamD<<std::endl;
+
+  for(int k=0;k<genmuons;k++){
+    ptgenMuons[k] = genMuons[k]->pt();
+    etagenMuons[k] = genMuons[k]->eta();
+  }
+
+  if ( genH.size() == 1 ) {
+    ptgenHiggs[0] = genH[0]->pt();
+  }
+  
+  if ( genA.size() >= 2 ) {
+    // Sort genA by pT (leading pT first)
+    std::sort (genA.begin(), genA.end(), PtOrder);
+    ptgengamD[0] = genA[0]->pt();
+    ptgengamD[1] = genA[1]->pt();
+  } else {
+    std::cout << "WARNING! genA.size() < 2" << std::endl;
+  }
+
+
+  //  std::cout<<" gen mouns groups  "<<genMuonGroups.size()<<std::endl;
+  
+  if ( genMuonGroups.size() == 2 && genMuonGroups[0].size() == 2 && genMuonGroups[1].size() == 2 ) {
+    std::sort( genMuonGroups[0].begin(), genMuonGroups[0].end(), PtOrder );
+    std::sort( genMuonGroups[1].begin(), genMuonGroups[1].end(), PtOrder );
+
+    ptgenMuonsA0[0] = genMuonGroups[0][0]->pt();
+    ptgenMuonsA0[1] = genMuonGroups[0][1]->pt();
+
+    ptgenMuonsA1[0] = genMuonGroups[1][0]->pt();
+    ptgenMuonsA1[1] = genMuonGroups[1][1]->pt();
+
+    etagenMuonsA0[0] = genMuonGroups[0][0]->eta();
+    etagenMuonsA0[1] = genMuonGroups[0][1]->eta();
+
+    etagenMuonsA1[0] = genMuonGroups[1][0]->eta();
+    etagenMuonsA1[1] = genMuonGroups[1][1]->eta();
+  }
+
+
+  
+  //================= Reco =======================//
+  
+  edm::Handle<pat::MuonCollection> muons;
+  iEvent.getByLabel(m_muons, muons);
+
+  std::vector<const reco::Muon*> recMuons;
+
+  for (pat::MuonCollection::const_iterator iMuon = muons->begin();  iMuon != muons->end();  ++iMuon) {
+    if ( fabs(iMuon->eta()) < 2.4 && ( iMuon->isTrackerMuon() || iMuon->isGlobalMuon() ) ) {
+      recMuons.push_back( &(*iMuon));
+    }
+  }
+
+  recmuons = recMuons.size();
+
+
+  //  std::cout<<" number of recmuons  "<<recmuons<<std::endl;
+
+  // Sort recMuons by pT (leading pT first)
+  if ( recMuons.size() > 1 ) std::sort( recMuons.begin(), recMuons.end(), PtOrderrec );
+
+
+  for(int k=0;k<recmuons;k++){
+    ptrecMuons[k] = recMuons[k]->pt();
+    etarecMuons[k] = recMuons[k]->eta();
+  }
+  
+
+  //================ MuJets  ======================//
+
+  edm::Handle<pat::MultiMuonCollection> muJets;
+  iEvent.getByLabel(m_muJets, muJets);
+
+  const pat::xMultiMuon *muJet1 = NULL;
+  const pat::MultiMuon *muJet2 = NULL;
+
+  unsigned int nMuJets = muJets->size();
+  recmujets = muJets->size();
+
+  //   std::cout<<" number of mujets  "<<recmujets<<std::endl;
+
+  //do delta R matching here
+
+  edm::Handle<reco::BeamSpot> beamSpot;
+  iEvent.getByLabel("offlineBeamSpot",beamSpot);
+
+  const pat::MultiMuon *muJet1_tmp = NULL;
+  const pat::MultiMuon *muJet2_tmp = NULL;
+
+  int matched = 0;
+  if (nMuJets == 2 && genMuonGroups.size() == 2 && genMuonGroups[0].size() == 2 && genMuonGroups[1].size() == 2) {
+    int mj1muons_tmp = (*muJets)[0].numberOfDaughters();
+    int mj2muons_tmp = (*muJets)[1].numberOfDaughters();
+    muJet1_tmp = &((*muJets)[0]);
+    muJet2_tmp = &((*muJets)[1]);     
+
+    if ( muJet1_tmp != NULL && muJet2_tmp != NULL ) {
+	
+      for (unsigned int q = 0; q < genMuonGroups.size(); ++q) { // loop over gen muon jets
+
+	// 	 std::cout << "starting gen group: " << q << std::endl;
+
+	double min_dR1_1 = 1000;
+	double min_dR1_2 = 1000;
+	double min_dR2_1 = 1000;
+	double min_dR2_2 = 1000;
+
+	for(int m=0;m<mj1muons_tmp;m++){ 
+	  double dPhi1_1 = My_dPhi((*muJets)[0].muon(m)->phi(), genMuonGroups[q][0]->phi());
+	  double dEta1_1 = (*muJets)[0].muon(m)->eta() - genMuonGroups[q][0]->eta();
+	  double dPhi1_2 = My_dPhi((*muJets)[0].muon(m)->phi(), genMuonGroups[q][1]->phi());
+	  double dEta1_2 = (*muJets)[0].muon(m)->eta() - genMuonGroups[q][1]->eta();
+	  double dR1_1 = sqrt( dPhi1_1*dPhi1_1 + dEta1_1*dEta1_1 ); 
+
+	  if (dR1_1< min_dR1_1) {
+	    min_dR1_1 = dR1_1;
+	  }
+	  double dR1_2 = sqrt( dPhi1_2*dPhi1_2 + dEta1_2*dEta1_2 ); 
+
+	  if (dR1_2< min_dR1_2){
+	    min_dR1_2 = dR1_2;
+	  }
+
+	}
+	for(int m=0;m<mj2muons_tmp;m++){ 
+
+	  double dPhi2_1 = My_dPhi((*muJets)[1].muon(m)->phi(), genMuonGroups[q][0]->phi());
+	  double dEta2_1 = (*muJets)[1].muon(m)->eta() - genMuonGroups[q][0]->eta();
+	  double dPhi2_2 = My_dPhi((*muJets)[1].muon(m)->phi(), genMuonGroups[q][1]->phi());
+	  double dEta2_2 = (*muJets)[1].muon(m)->eta() - genMuonGroups[q][1]->eta();
+	  double dR2_1 = sqrt( dPhi2_1*dPhi2_1 + dEta2_1*dEta2_1 ); 
+
+	  if (dR2_1< min_dR2_1){
+	    min_dR2_1 = dR2_1;
+	  }
+	  double dR2_2 = sqrt( dPhi2_2*dPhi2_2 + dEta2_2*dEta2_2 ); 
+
+	  if (dR2_2< min_dR2_2){
+	    min_dR2_2 = dR2_2;
+	  }
+	}
+	if (min_dR1_1 < 0.1 && min_dR1_2 < 0.1 ){
+	  matched++;
+
+	  if (muJet1_tmp->vertexValid())  gen_match_chi2mj1= muJet1_tmp->vertexNormalizedChi2();
+
+	  // std::cout << "genMuonGroups[q][0]->vertex().x(): " << genMuonGroups[q][0]->vertex().x() << std::endl;
+	  // std::cout << "genMuonGroups[q][0]->vertex().y(): " << genMuonGroups[q][0]->vertex().y() << std::endl;
+	  // std::cout << "genMuonGroups[q][0]->vertex().z(): " << genMuonGroups[q][0]->vertex().z() << std::endl;
+
+	  double gez = genMuonGroups[q][0]->vertex().z()-beamSpot->position().z();
+	  double gex = genMuonGroups[q][0]->vertex().x()-beamSpot->position().x();
+	  double gey = genMuonGroups[q][0]->vertex().y()-beamSpot->position().y();
+	  double gepx = genMuonGroups[q][0]->p4().x() + genMuonGroups[q][1]->p4().x();
+	  double gepy = genMuonGroups[q][0]->p4().y() + genMuonGroups[q][1]->p4().y();
+	  double gepz = genMuonGroups[q][0]->p4().z() + genMuonGroups[q][1]->p4().z();
+	  double gept =  pow(gepx*gepx + gepy*gepy,0.5);
+	  gen_match_dzmj1 = (gez) - ((gex)*gepx+(gey)*gepy)/gept * gepz/gept;
+	  // std::cout << "True vertex 1: " << gen_match_dzmj1 << std::endl;
+	  XYZTLorentzVector p4Sum;
+	  p4Sum += XYZTLorentzVector(gepx, gepy, gepz, genMuonGroups[q][0]->p4().e() + genMuonGroups[q][1]->p4().e());
+
+	  gen_match_massmj1= p4Sum.mass();
+
+	  gen_mismatch_massmj1= 0.;
+	  gen_mismatch_chi2mj1= 0.;
+	  gen_mismatch_dzmj1 = 0.;
+	}
+	if (min_dR2_1 < 0.1 && min_dR2_2 < 0.1 ){
+	  matched++;
+
+	  if (muJet2_tmp->vertexValid()) gen_match_chi2mj2= muJet2_tmp->vertexNormalizedChi2();
+	  gen_mismatch_massmj2= 0.;
+	  gen_mismatch_dzmj2 = 0.;
+	  gen_mismatch_chi2mj2 = 0.;
+
+	  // std::cout <<  "genMuonGroups[q][0]->vertex().x(): " << genMuonGroups[q][0]->vertex().x() << std::endl;
+	  // std::cout << "genMuonGroups[q][0]->vertex().y(): " << genMuonGroups[q][0]->vertex().y() << std::endl;
+	  // std::cout << "genMuonGroups[q][0]->vertex().z(): " << genMuonGroups[q][0]->vertex().z() << std::endl;
+
+	  double gez = genMuonGroups[q][0]->vertex().z()-beamSpot->position().z();
+	  double gex = genMuonGroups[q][0]->vertex().x()-beamSpot->position().x();
+	  double gey = genMuonGroups[q][0]->vertex().y()-beamSpot->position().y();
+	  double gepx = genMuonGroups[q][0]->p4().x() + genMuonGroups[q][1]->p4().x();
+	  double gepy = genMuonGroups[q][0]->p4().y() + genMuonGroups[q][1]->p4().y();
+	  double gepz = genMuonGroups[q][0]->p4().z() + genMuonGroups[q][1]->p4().z();
+	  double gept =  pow(gepx*gepx + gepy*gepy,0.5);
+	  gen_match_dzmj2 = (gez) - ((gex)*gepx+(gey)*gepy)/gept * gepz/gept;
+	  // std::cout << "True vertex 2: " << gen_match_dzmj2 << std::endl;
+
+	  XYZTLorentzVector p4Sum;
+	  p4Sum += XYZTLorentzVector(gepx, gepy, gepz, genMuonGroups[q][0]->p4().e() + genMuonGroups[q][1]->p4().e());
+	  gen_match_massmj2= p4Sum.mass();
+
+	}
+	if (q == 1 && matched == 0){
+	  gen_mismatch_massmj1= muJet1_tmp->mass();
+	  gen_mismatch_massmj2= muJet2_tmp->mass();
+	  gen_mismatch_dzmj1 = muJet1_tmp->dz(beamSpot->position());
+	  gen_mismatch_dzmj2 = muJet2_tmp->dz(beamSpot->position());
+	  if (muJet1_tmp->vertexValid()) gen_mismatch_chi2mj1= muJet1_tmp->vertexNormalizedChi2();
+	  if (muJet2_tmp->vertexValid()) gen_mismatch_chi2mj2= muJet2_tmp->vertexNormalizedChi2();
+
+	  gen_match_massmj1= 0;
+	  gen_match_massmj2= 0;
+	  gen_match_dzmj1 = 0;
+	  gen_match_dzmj2 = 0;
+	  gen_match_chi2mj1= 0;
+	  gen_match_chi2mj2= 0;
+	}
+      }
+    }
+  }  
+
+
+  if (nMuJets == 2) {
+
+    mj1muons = (*muJets)[0].numberOfDaughters();
+    mj2muons = (*muJets)[1].numberOfDaughters();
+      
+    muJet1 = &((*muJets)[0]);
+    muJet2 = &((*muJets)[1]);
+
+    //     std::cout<<" muons in MuJet1  "<<mj1muons<<std::endl;
+    //     std::cout<<" muons in MuJet2  "<<mj2muons<<std::endl;
+    for(int m=0;m<mj1muons;m++){
+      ptmj1muons[m]  = (*muJets)[0].muon(m)->pt();
+      etamj1muons[m]  = (*muJets)[0].muon(m)->eta();
+    }
+
+    for(int m=0;m<mj2muons;m++){
+      ptmj2muons[m]  = (*muJets)[1].muon(m)->pt();
+      etamj2muons[m]  = (*muJets)[1].muon(m)->eta();
+    }
+
+
+  }
+
+  if ( muJet1 != NULL && muJet2 != NULL ) {
+    //     std::cout<<" muon jet dz calculation  "<<std::endl;
+    dzmj1 = muJet1->dz(beamSpot->position());
+    dzmj2 = muJet2->dz(beamSpot->position());
+    // if (fabs(gen_match_dzmj1)>0) std::cout << "dzmj1Diff->Fill(" << fabs(gen_match_dzmj1-dzmj1) << ");" << std::endl;
+    // if (fabs(gen_match_dzmj2)>0) std::cout << "dzmj2Diff->Fill(" << fabs(gen_match_dzmj2-dzmj2) << ");" << std::endl;
+
+    // if (fabs(dzmj1-dzmj2) > 0.1){
+    //   std::cout << "gen_match_dzmj1: " << gen_match_dzmj1 << ", dzmj1: " << dzmj1 << std::endl;
+    //   std::cout << "gen_match_dzmj2: " << gen_match_dzmj2 << ", dzmj2: " << dzmj2 << std::endl;
+    //   if (fabs(gen_match_dzmj1) != 0) std::cout << "dzmj1Diff01->Fill(" << fabs(gen_match_dzmj1-dzmj1) << ");" << std::endl;
+    //   if (fabs(gen_match_dzmj2) != 0) std::cout << "dzmj2Diff01->Fill(" << fabs(gen_match_dzmj2-dzmj2) << ");" << std::endl;
+    //   std::cout << "gen_match_dzmj12->Fill(" << fabs(gen_match_dzmj1-gen_match_dzmj2) << ");" << std::endl;
+    //   std::cout << "dzmj12->Fill(" << fabs(dzmj1-dzmj2) << ");" << std::endl;
+    // }
+  }
+
+  //    std::cout<<"  mass   "<<std::endl;
+  if ( muJet1!= NULL && muJet2!= NULL ) {
+    //      std::cout<<" muon jet mass calculation  "<<std::endl;
+    massmj1= muJet1->mass();
+    massmj2= muJet2->mass();
+  }
+
+  // std::cout << "nominal massmj1: " << massmj1 << std::endl;
+  // std::cout << "nominal massmj2: " << massmj2 << std::endl;
+
+  double min_dZ = 100.;
+  double min_mass = 100.;
+  double min_mass1 = 100.;
+  double min_mass2 = 100.;
+  double old_min_dZ = 100.;
+  double mod_min_dZ = 100.;
+  double mod_min_dZmass = 100.;
+
+  double mod_min_dz_X1 = 10000.;
+  double mod_min_dz_Y1 = 10000.;
+  double mod_min_dz_Z1 = 10000.;
+  double mod_min_dz_X2 = 20000.;
+  double mod_min_dz_Y2 = 20000.;
+  double mod_min_dz_Z2 = 20000.;
+
+  double mod_min_mass1 = 10000.;
+  double mod_min_mass2 = 10000.;
+
+
+
+  double minLeastSqTot1 = 10000.;
+  double minLeastSqX1 = 10000.;
+  double minLeastSqY1 = 10000.;
+  double minLeastSqZ1 = 10000.;
+  double minLeastSqdZ1 = 10000.;
+  int minLeastSqI1 = 0;
+  int minLeastSqJ1 = 0;
+
+  double minLeastSqTot2 = 20000.;
+  double minLeastSqX2 = 20000.;
+  double minLeastSqY2 = 20000.;
+  double minLeastSqZ2 = 20000.;
+  int minLeastSqI2 = 0;
+  int minLeastSqJ2 = 0;
+
+  bool verbose = false;
+  bool verbose_reduced = true;
+  bool summary = false;
+
+  if ( muJet1 != NULL && muJet2 != NULL ) {     
+    // std::cout << "fabs(dzmj1-dzmj2): " << fabs(dzmj1-dzmj2) << std::endl;
+    if (fabs(dzmj1-dzmj2) > 0.1){
+
+      if (verbose_reduced){
+	std::cout << "event = " << iEvent.id().event() << std::endl;
+	std::cout << "Nominal reco vertex 1: " << dzmj1 << std::endl;
+	std::cout << "Nominal reco vertex 2: " << dzmj2 << std::endl;
+      }
+      if (nMuJets == 2) {
+	if (((*muJets)[0].vertexValid()) && ((*muJets)[1].vertexValid())){
+
+	  // std::cout << std::endl;
+
+  //        std::cout << "muJet: " << i << " vertexChi2(): " << (*muJets)[0].vertexChi2() << std::endl;
+	  //        std::cout << "muJet: " << i << " vertexNdof(): " << (*muJets)[0].vertexNdof() << std::endl;
+       
+	  double A1[3][3];
+	  double V1[3][3];
+	  double d1[3];
+	  d1[0]=0.;
+	  d1[1]=0.;
+	  d1[2]=0.;
+
+	  double A2[3][3];
+	  double V2[3][3];
+	  double d2[3];
+	  d2[0]=0.;
+	  d2[1]=0.;
+	  d2[2]=0.;
+
+	  for (unsigned int a = 0; a < 3; ++a){
+	    for (unsigned int b = 0; b < 3; ++b){
+	      //  	   std::cout << "muJet: " << i << " vertexCovariance(" << a << "," << b << "): " << (*muJets)[0].vertexCovariance(a,b) << std::endl;   
+	      A1[a][b] = (*muJets)[0].vertexCovariance(a,b);
+	      A2[a][b] = (*muJets)[1].vertexCovariance(a,b);
+	    }
+	  }
+
+	  //        std::cout << "CovMat = {{" << A[0][0] << "," << A[0][1] << "," << A[0][2] << "},{" << A[1][0] << "," << A[1][1] << "," << A[1][2] << "},{" << A[2][0] << "," << A[2][1] << "," << A[2][2] << "}};" << std::endl;
+
+	  // Perform the decomposition       
+	  eigen_decomposition(A1, V1, d1);
+	  eigen_decomposition(A2, V2, d2);
+	  // Output the result
+
+	  // if ((sqrt(d1[0]) > sqrt(d1[2])) || (sqrt(d1[1]) > sqrt(d1[2]))){
+
+	  if (verbose){
+
+	    std::cout << "Eigenvalues (mujet 1): " << d1[0] << " " << d1[1] << " " << d1[2] << std::endl;
+	    std::cout << "sqrt(Eigenvalues): " << sqrt(d1[0]) << " " << sqrt(d1[1]) << " " << sqrt(d1[2]) << std::endl;
+	    std::cout << "Eigenvalues (mujet 2): " << d2[0] << " " << d2[1] << " " << d2[2] << std::endl;
+	    std::cout << "sqrt(Eigenvalues): " << sqrt(d2[0]) << " " << sqrt(d2[1]) << " " << sqrt(d2[2]) << std::endl;
+	  }
+
+	  // double circle1Size = 2.4477*(sqrt(d1[2]));
+	  // double circle2Size = 2.4477*(sqrt(d2[2]));
+
+	  // double circle1Size = 3*(sqrt(d1[2]));
+	  // double circle2Size = 3*(sqrt(d2[2]));
+
+	  double circle1Size = sqrt(d1[2]);
+	  double circle2Size = sqrt(d2[2]);
+
+       
+
+	  bool recoMatched = false;
+
+	  Global3DVector muonjet1 = muJet1->vertexMomentum();
+	  Global3DVector muonjet2 = muJet2->vertexMomentum();
+
+	  Global3DPoint muonjet1v = muJet1->vertexPoint();
+	  Global3DPoint muonjet2v = muJet2->vertexPoint();
+
+
+	  // std::cout << std::endl;
+
+
+	  // std::cout << "(*muJets)[0].vertexPoint().x(): " << (*muJets)[0].vertexPoint().x() << std::endl;
+	  // std::cout << "(*muJets)[0].vertexPoint().y(): " << (*muJets)[0].vertexPoint().y() << std::endl;
+	  // std::cout << "(*muJets)[0].vertexPoint().z(): " << (*muJets)[0].vertexPoint().z() << std::endl;
+	  // std::cout << "(*muJets)[1].vertexPoint().x(): " << (*muJets)[1].vertexPoint().x() << std::endl;
+	  // std::cout << "(*muJets)[1].vertexPoint().y(): " << (*muJets)[1].vertexPoint().y() << std::endl;
+	  // std::cout << "(*muJets)[1].vertexPoint().z(): " << (*muJets)[1].vertexPoint().z() << std::endl;
+
+	  if (verbose){
+
+	    std::cout << "muonjet1v: " << muonjet1v << std::endl;
+	    std::cout << "muonjet2v: " << muonjet2v << std::endl;
+	  }
+	  // std::cout << "muonjet1v.theta(): " << muonjet1v.theta() << std::endl;
+	  // std::cout << "muonjet2v.theta(): " << muonjet2v.theta() << std::endl;
+	  // std::cout << "muonjet1v.phi(): " << muonjet1v.phi() << std::endl;
+	  // std::cout << "muonjet2v.phi(): " << muonjet2v.phi() << std::endl;
+
+
+	  // std::cout << "muonjet1.theta(): " << muonjet1.theta() << std::endl;
+	  // std::cout << "muonjet2.theta(): " << muonjet2.theta() << std::endl;
+	  // std::cout << "muonjet1.phi(): " << muonjet1.phi() << std::endl;
+	  // std::cout << "muonjet2.phi(): " << muonjet2.phi() << std::endl;
+
+	  double r1 = sqrt((muonjet1.x()*muonjet1.x()) + (muonjet1.y()*muonjet1.y()) + (muonjet1.z()*muonjet1.z()));
+	  double r2 = sqrt((muonjet2.x()*muonjet2.x()) + (muonjet2.y()*muonjet2.y()) + (muonjet2.z()*muonjet2.z()));
+
+
+	  double r1_plus_tmp = sqrt((muonjet1.x()*muonjet1.x()) + (muonjet1.y()*muonjet1.y()) + ((muonjet1.z()+((circle1Size/20)))*(muonjet1.z()+(circle1Size/20))));
+	  double r2_plus_tmp = sqrt((muonjet2.x()*muonjet2.x()) + (muonjet2.y()*muonjet2.y()) + ((muonjet2.z()+((circle2Size/20)))*(muonjet2.z()+(circle2Size/20))));
+
+
+
+	  // std::cout << "unit muonjet1 x: " << muonjet1.x()/fabs(r1) << std::endl;
+	  // std::cout << "unit muonjet1 y: " << muonjet1.y()/fabs(r1) << std::endl;
+	  // std::cout << "unit muonjet1 z: " << muonjet1.z()/fabs(r1) << std::endl;
+	  // std::cout << "unit muonjet2 x: " << muonjet2.x()/fabs(r2) << std::endl;
+	  // std::cout << "unit muonjet2 y: " << muonjet2.y()/fabs(r2) << std::endl;
+	  // std::cout << "unit muonjet2 z: " << muonjet2.z()/fabs(r2) << std::endl;
+
+
+	  // std::cout << "muonjet1 x: " << r1 * sin(muonjet1.theta()) * cos(muonjet1.phi()) << std::endl;
+	  // std::cout << "muonjet1 y: " << r1 * sin(muonjet1.theta()) * sin(muonjet1.phi()) << std::endl;
+	  // std::cout << "muonjet1 z: " << r1 * cos(muonjet1.theta()) << std::endl;
+	  // std::cout << "muonjet2 x: " << r2 * sin(muonjet2.theta()) * cos(muonjet2.phi()) << std::endl;
+	  // std::cout << "muonjet2 y: " << r2 * sin(muonjet2.theta()) * sin(muonjet2.phi()) << std::endl;
+	  // std::cout << "muonjet2 z: " << r2 * cos(muonjet2.theta()) << std::endl;
+
+
+	  // std::cout << "muonjet1 x plus_tmp: " << r1_plus_tmp * sin(muonjet1.theta()) * cos(muonjet1.phi()) << std::endl;
+	  // std::cout << "muonjet1 y plus_tmp: " << r1_plus_tmp * sin(muonjet1.theta()) * sin(muonjet1.phi()) << std::endl;
+	  // std::cout << "muonjet1 z plus_tmp: " << r1_plus_tmp * cos(muonjet1.theta()) << std::endl;
+       
+	  // std::cout << "muonjet2 x plus_tmp: " << r2_plus_tmp * sin(muonjet2.theta()) * cos(muonjet2.phi()) << std::endl;
+	  // std::cout << "muonjet2 y plus_tmp: " << r2_plus_tmp * sin(muonjet2.theta()) * sin(muonjet2.phi()) << std::endl;
+	  // std::cout << "muonjet2 z plus_tmp: " << r2_plus_tmp * cos(muonjet2.theta()) << std::endl;
+
+	  // std::cout << "muonjet1 x orig plus_tmp: " << muonjet1v.x() + r1_plus_tmp * sin(muonjet1.theta()) * cos(muonjet1.phi()) << std::endl;
+	  // std::cout << "muonjet1 y orig plus_tmp: " << muonjet1v.y() + r1_plus_tmp * sin(muonjet1.theta()) * sin(muonjet1.phi()) << std::endl;
+	  // std::cout << "muonjet1 z orig plus_tmp: " << muonjet1v.z() + r1_plus_tmp * cos(muonjet1.theta()) << std::endl;
+
+	  // std::cout << "muonjet2 x orig plus_tmp: " << muonjet2v.x() + r2_plus_tmp * sin(muonjet2.theta()) * cos(muonjet2.phi()) << std::endl;
+	  // std::cout << "muonjet2 y orig plus_tmp: " << muonjet2v.y() + r2_plus_tmp * sin(muonjet2.theta()) * sin(muonjet2.phi()) << std::endl;
+	  // std::cout << "muonjet2 z orig plus_tmp: " << muonjet2v.z() + r2_plus_tmp * cos(muonjet2.theta()) << std::endl;
+       
+	  double r1_plus = 0;
+	  double r2_plus = 0;
+
+	  // std::cout << "muonjet1 z: " << r1 * cos(muonjet1.theta()) << std::endl;
+	  // std::cout << "muonjet2 z: " << r2 * cos(muonjet2.theta()) << std::endl;
+
+	  if (verbose){
+
+	    std::cout << "muonjet 1 x: " << muonjet1v.x()  << std::endl;
+	    std::cout << "muonjet 1 y: " << muonjet1v.y()  << std::endl;
+	    std::cout << "muonjet 1 z: " << muonjet1v.z()  << std::endl;
+
+	    std::cout << "muonjet 2 x: " << muonjet2v.x()  << std::endl;
+	    std::cout << "muonjet 2 y: " << muonjet2v.y()  << std::endl;
+	    std::cout << "muonjet 2 z: " << muonjet2v.z()  << std::endl;
+
+	    std::cout << "circle1Size: " << circle1Size << ", circle1Size/20: " << circle1Size/20 << std::endl;
+	    std::cout << "circle2Size: " << circle2Size << ", circle2Size/20: " << circle2Size/20 << std::endl;
+	  }	 
+
+	  for (int i = -20; i < 20; i++){
+	    if (verbose){
+	      std::cout << "i: " << i << std::endl;
+	    }
+	    double t1 = ((circle1Size/20)*i)/muonjet1.z();
+	    if (verbose){
+
+	      std::cout << "t1: " << t1 << ", ((circle1Size/20)*i): " << ((circle1Size/20)*i) << std::endl;
+	    }
+	    double newX1 = muonjet1v.x() + (t1*muonjet1.x());
+	    double newY1 = muonjet1v.y() + (t1*muonjet1.y());
+	    double newZ1 = muonjet1v.z() + (t1*muonjet1.z());
+
+	    double oldX1 = muonjet1v.x();
+	    double oldY1 = muonjet1v.y();
+	    double oldZ1 = muonjet1v.z();
+
+	    if (verbose){
+
+	      std::cout << "(t1*muonjet1.x()): " << (t1*muonjet1.x()) << std::endl;
+	      std::cout << "(t1*muonjet1.y()): " << (t1*muonjet1.y()) << std::endl;
+	      std::cout << "(t1*muonjet1.z()): " << (t1*muonjet1.z()) << std::endl;
+
+	      std::cout << std::endl;
+	      std::cout << "new1 xyz: " << newX1 << "," << newY1 << "," << newZ1 << std::endl;
+	      std::cout << "new1 z, old xy: " << oldX1 << "," << oldY1 << "," << newZ1 << std::endl;
+	    }
+	    double rez1 = newZ1-beamSpot->position().z();
+	    double rex1 = newX1-beamSpot->position().x();
+	    double rey1 = newY1-beamSpot->position().y();
+
+	    double old_rex1 = oldX1-beamSpot->position().x();
+	    double old_rey1 = oldY1-beamSpot->position().y();
+
+	    for (int j = -20; j < 20; j++){
+
+	      if (verbose){
+		std::cout << "j: " << j << std::endl;
+	      }
+	      double t2 = ((circle2Size/20)*j)/muonjet2.z();
+	      if (verbose){
+
+		std::cout << "t2: " << t2 << ", ((circle2Size/20)*j): " << ((circle2Size/20)*j) << std::endl;
+	      }
+	      double newX2 = muonjet2v.x() + (t2*muonjet2.x());
+	      double newY2 = muonjet2v.y() + (t2*muonjet2.y());
+	      double newZ2 = muonjet2v.z() + (t2*muonjet2.z());
+
+	      double oldX2 = muonjet2v.x();
+	      double oldY2 = muonjet2v.y();
+	      double oldZ2 = muonjet2v.z();
+	      if (verbose){
+
+		std::cout << "(t1*muonjet1.x()): " << (t1*muonjet1.x()) << std::endl;
+		std::cout << "(t1*muonjet1.y()): " << (t1*muonjet1.y()) << std::endl;
+		std::cout << "(t1*muonjet1.z()): " << (t1*muonjet1.z()) << std::endl;
+
+		std::cout << "(t2*muonjet2.x()): " << (t2*muonjet2.x()) << std::endl;
+		std::cout << "(t2*muonjet2.y()): " << (t2*muonjet2.y()) << std::endl;
+		std::cout << "(t2*muonjet2.z()): " << (t2*muonjet2.z()) << std::endl;
+
+
+		std::cout << "old1 xyz: " << oldX1 << "," << oldY1 << "," << oldZ1 << std::endl;
+		std::cout << "old2 xyz: " << oldX2 << "," << oldY2 << "," << oldZ2 << std::endl;
+		std::cout << "new1 xyz: " << newX1 << "," << newY1 << "," << newZ1 << std::endl;
+		std::cout << "new2 xyz: " << newX2 << "," << newY2 << "," << newZ2 << std::endl;
+		std::cout << "old xy, new1 z: " << oldX1 << "," << oldY1 << "," << newZ1 << std::endl;
+		std::cout << "old xy, new2 z: " << oldX2 << "," << oldY2 << "," << newZ2 << std::endl;
+	      }	 
+
+	      if (verbose){
+		std::cout << "old1 xyz: " << oldX1 << "," << oldY1 << "," << oldZ1 << std::endl;
+		std::cout << "new1 xyz: " << newX1 << "," << newY1 << "," << newZ1 << std::endl;
+		std::cout << "old xy, new1 z: " << oldX1 << "," << oldY1 << "," << newZ1 << std::endl;
+
+		std::cout << "old2 xyz: " << oldX2 << "," << oldY2 << "," << oldZ2 << std::endl;
+		std::cout << "new2 xyz: " << newX2 << "," << newY2 << "," << newZ2 << std::endl;
+		std::cout << "old xy, new2 z: " << oldX2 << "," << oldY2 << "," << newZ2 << std::endl;
+
+		std::cout << "genMuonGroups[0][0]->vertex(): " << genMuonGroups[0][0]->vertex() << std::endl;
+		std::cout << "genMuonGroups[0][1]->vertex(): " << genMuonGroups[0][1]->vertex() << std::endl;
+		std::cout << "genMuonGroups[1][0]->vertex(): " << genMuonGroups[1][0]->vertex() << std::endl;
+		std::cout << "genMuonGroups[1][1]->vertex(): " << genMuonGroups[1][1]->vertex() << std::endl;
+
+
+		std::cout << "(*muJets)[0].muon(0)->vertex(): " << (*muJets)[0].muon(0)->vertex() << std::endl;
+		std::cout << "(*muJets)[0].muon(1)->vertex(): " << (*muJets)[0].muon(1)->vertex() << std::endl;
+		std::cout << "(*muJets)[1].muon(0)->vertex(): " << (*muJets)[1].muon(0)->vertex() << std::endl;
+		std::cout << "(*muJets)[1].muon(1)->vertex(): " << (*muJets)[1].muon(1)->vertex() << std::endl;
+
+		// std::cout << "(*muJets)[0].muon(0)->innerTrack(): " << (*muJets)[0].muon(0)->innerTrack() << std::endl;
+		// std::cout << "(*muJets)[0].muon(1)->innerTrack(): " << (*muJets)[0].muon(1)->innerTrack() << std::endl;
+		// std::cout << "(*muJets)[1].muon(0)->innerTrack(): " << (*muJets)[1].muon(0)->innerTrack() << std::endl;
+		// std::cout << "(*muJets)[1].muon(1)->innerTrack(): " << (*muJets)[1].muon(1)->innerTrack() << std::endl;
+
+		std::cout << std::endl;
+		std::cout << "genMuonGroups[0][0]->p4(): " << genMuonGroups[0][0]->p4() << std::endl;
+		std::cout << "genMuonGroups[0][1]->p4(): " << genMuonGroups[0][1]->p4() << std::endl;
+		std::cout << "genMuonGroups[1][0]->p4(): " << genMuonGroups[1][0]->p4() << std::endl;
+		std::cout << "genMuonGroups[1][1]->p4(): " << genMuonGroups[1][1]->p4() << std::endl;
+
+	      }
+
+
+	      // double tmp_11x = (*muJets)[0].muon(0)->p4().x()+newX1;
+	      // double tmp_11y = (*muJets)[0].muon(0)->p4().y()+newY1;
+	      // double tmp_11z = (*muJets)[0].muon(0)->p4().z()+newZ1;
+	      // double tmp_12x = (*muJets)[0].muon(1)->p4().x()+newX1;
+	      // double tmp_12y = (*muJets)[0].muon(1)->p4().y()+newY1;
+	      // double tmp_12z = (*muJets)[0].muon(1)->p4().z()+newZ1;
+	      // double tmp_21x = (*muJets)[1].muon(0)->p4().x()+newX2;
+	      // double tmp_21y = (*muJets)[1].muon(0)->p4().y()+newY2;
+	      // double tmp_21z = (*muJets)[1].muon(0)->p4().z()+newZ2;
+	      // double tmp_22x = (*muJets)[1].muon(1)->p4().x()+newX2;
+	      // double tmp_22y = (*muJets)[1].muon(1)->p4().y()+newY2;
+	      // double tmp_22z = (*muJets)[1].muon(1)->p4().z()+newZ2;
+
+	      double tmp_11x = (*muJets)[0].muon(0)->p4().x()+fabs(newX1-oldX1);
+	      double tmp_11y = (*muJets)[0].muon(0)->p4().y()+fabs(newY1-oldY1);
+	      double tmp_11z = (*muJets)[0].muon(0)->p4().z()+fabs(newZ1-oldZ1);
+	      double tmp_12x = (*muJets)[0].muon(1)->p4().x()+fabs(newX1-oldX1);
+	      double tmp_12y = (*muJets)[0].muon(1)->p4().y()+fabs(newY1-oldY1);
+	      double tmp_12z = (*muJets)[0].muon(1)->p4().z()+fabs(newZ1-oldZ1);
+	      double tmp_21x = (*muJets)[1].muon(0)->p4().x()+(newX2-oldX2);
+	      double tmp_21y = (*muJets)[1].muon(0)->p4().y()+(newY2-oldY2);
+	      double tmp_21z = (*muJets)[1].muon(0)->p4().z()+(newZ2-oldZ2);
+	      double tmp_22x = (*muJets)[1].muon(1)->p4().x()+(newX2-oldX2);
+	      double tmp_22y = (*muJets)[1].muon(1)->p4().y()+(newY2-oldY2);
+	      double tmp_22z = (*muJets)[1].muon(1)->p4().z()+(newZ2-oldZ2);
+
+	      if (verbose){
+		std::cout << "(*muJets)[0].muon(0)->p4().x(): " << (*muJets)[0].muon(0)->p4().x() << std::endl;
+		std::cout << "newX1: " << newX1 << ", old X1: " << oldX1 << ", diff: " << newX1-oldX1 << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().y(): " << (*muJets)[0].muon(0)->p4().y() << std::endl;
+		std::cout << "newY1: " << newY1 << ", old Y1: " << oldY1 << ", diff: " << newY1-oldY1 << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().z(): " << (*muJets)[0].muon(0)->p4().z() << std::endl;
+		std::cout << "newZ1: " << newZ1 << ", old Z1: " << oldZ1 << ", diff: " << newZ1-oldZ1 << std::endl;
+
+		std::cout << "tmp_11x = (*muJets)[0].muon(0)->p4().x()+(newX1-oldX1) : " << tmp_11x << std::endl;
+		std::cout << "tmp_11y = (*muJets)[0].muon(0)->p4().y()+(newY1-oldY1) : " << tmp_11y << std::endl;
+		std::cout << "tmp_11z = (*muJets)[0].muon(0)->p4().z()+(newZ1-oldZ1) : " << tmp_11z << std::endl;
+		std::cout << "tmp_12x = (*muJets)[0].muon(1)->p4().x()+(newX1-oldX1) : " << tmp_12x << std::endl;
+		std::cout << "tmp_12y = (*muJets)[0].muon(1)->p4().y()+(newY1-oldY1) : " << tmp_12y << std::endl;
+		std::cout << "tmp_12z = (*muJets)[0].muon(1)->p4().z()+(newZ1-oldZ1) : " << tmp_12z << std::endl;
+		std::cout << "tmp_21x = (*muJets)[1].muon(0)->p4().x()+(newX2-oldX2) : " << tmp_21x << std::endl;
+		std::cout << "tmp_21y = (*muJets)[1].muon(0)->p4().y()+(newY2-oldY2) : " << tmp_21y << std::endl;
+		std::cout << "tmp_21z = (*muJets)[1].muon(0)->p4().z()+(newZ2-oldZ2) : " << tmp_21z << std::endl;
+		std::cout << "tmp_22x = (*muJets)[1].muon(1)->p4().x()+(newX2-oldX2) : " << tmp_22x << std::endl;
+		std::cout << "tmp_22y = (*muJets)[1].muon(1)->p4().y()+(newY2-oldY2) : " << tmp_22y << std::endl;
+		std::cout << "tmp_22z = (*muJets)[1].muon(1)->p4().z()+(newZ2-oldZ2) : " << tmp_22z << std::endl;
+	      }
+
+	      // double tmp_11x = (*muJets)[0].muon(0)->p4().x()+(oldX1-newX1);
+	      // double tmp_11y = (*muJets)[0].muon(0)->p4().y()+(oldY1-newY1);
+	      // double tmp_11z = (*muJets)[0].muon(0)->p4().z()+(oldZ1-newZ1);
+	      // double tmp_12x = (*muJets)[0].muon(1)->p4().x()+(oldX1-newX1);
+	      // double tmp_12y = (*muJets)[0].muon(1)->p4().y()+(oldY1-newY1);
+	      // double tmp_12z = (*muJets)[0].muon(1)->p4().z()+(oldZ1-newZ1);
+	      // double tmp_21x = (*muJets)[1].muon(0)->p4().x()+(oldX2-newX2);
+	      // double tmp_21y = (*muJets)[1].muon(0)->p4().y()+(oldY2-newY2);
+	      // double tmp_21z = (*muJets)[1].muon(0)->p4().z()+(oldZ2-newZ2);
+	      // double tmp_22x = (*muJets)[1].muon(1)->p4().x()+(oldX2-newX2);
+	      // double tmp_22y = (*muJets)[1].muon(1)->p4().y()+(oldY2-newY2);
+	      // double tmp_22z = (*muJets)[1].muon(1)->p4().z()+(oldZ2-newZ2);
+
+	     
+	      if (verbose){ 
+
+		std::cout << "genMuonGroups[0][0]->pt(): " << genMuonGroups[0][0]->pt() << std::endl;
+		std::cout << "genMuonGroups[0][1]->pt(): " << genMuonGroups[0][1]->pt() << std::endl;
+		std::cout << "genMuonGroups[1][0]->pt(): " << genMuonGroups[1][0]->pt() << std::endl;
+		std::cout << "genMuonGroups[1][1]->pt(): " << genMuonGroups[1][1]->pt() << std::endl;
+
+		std::cout << "(*muJets)[0].muon(0)->p4().x()+newX1 : " << (*muJets)[0].muon(0)->p4().x()+newX1 << ", " << (*muJets)[0].muon(0)->p4().x() << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->px()+newX1 : " << (*muJets)[0].muon(0)->px()+newX1 << ", " << (*muJets)[0].muon(0)->px() << std::endl;
+
+
+	      std::cout << "(*muJets)[0].muon(0)->p4().x()+newX1 : " << (*muJets)[0].muon(0)->p4().x()+newX1 << ", " << (*muJets)[0].muon(0)->p4().x() << std::endl;
+	      std::cout << "(*muJets)[0].muon(0)->p4().y()+newY1 : " << (*muJets)[0].muon(0)->p4().y()+newY1 << ", " << (*muJets)[0].muon(0)->p4().y() << std::endl;
+	      std::cout << "(*muJets)[0].muon(0)->p4().z()+newZ1 : " << (*muJets)[0].muon(0)->p4().z()+newZ1 << ", " << (*muJets)[0].muon(0)->p4().z() << std::endl;
+	      std::cout << "(*muJets)[0].muon(1)->p4().x()+newX1 : " << (*muJets)[0].muon(1)->p4().x()+newX1 << ", " << (*muJets)[0].muon(1)->p4().x() << std::endl;
+	      std::cout << "(*muJets)[0].muon(1)->p4().y()+newY1 : " << (*muJets)[0].muon(1)->p4().y()+newY1 << ", " << (*muJets)[0].muon(1)->p4().y() << std::endl;
+	      std::cout << "(*muJets)[0].muon(1)->p4().z()+newZ1 : " << (*muJets)[0].muon(1)->p4().z()+newZ1 << ", " << (*muJets)[0].muon(1)->p4().z() << std::endl;
+	      std::cout << "(*muJets)[1].muon(0)->p4().x()+newX2 : " << (*muJets)[1].muon(0)->p4().x()+newX2 << ", " << (*muJets)[1].muon(0)->p4().x() << std::endl;
+	      std::cout << "(*muJets)[1].muon(0)->p4().y()+newY2 : " << (*muJets)[1].muon(0)->p4().y()+newY2 << ", " << (*muJets)[1].muon(0)->p4().y() << std::endl;
+	      std::cout << "(*muJets)[1].muon(0)->p4().z()+newZ2 : " << (*muJets)[1].muon(0)->p4().z()+newZ2 << ", " << (*muJets)[1].muon(0)->p4().z() << std::endl;
+	      std::cout << "(*muJets)[1].muon(1)->p4().x()+newX2 : " << (*muJets)[1].muon(1)->p4().x()+newX2 << ", " << (*muJets)[1].muon(1)->p4().x() << std::endl;
+	      std::cout << "(*muJets)[1].muon(1)->p4().y()+newY2 : " << (*muJets)[1].muon(1)->p4().y()+newY2 << ", " << (*muJets)[1].muon(1)->p4().y() << std::endl;
+	      std::cout << "(*muJets)[1].muon(1)->p4().z()+newZ2 : " << (*muJets)[1].muon(1)->p4().z()+newZ2 << ", " << (*muJets)[1].muon(1)->p4().z() << std::endl;
+	      }
+
+
+	      double tmp_11t =  pow(tmp_11x*tmp_11x + tmp_11y*tmp_11y + tmp_11z*tmp_11z,0.5);
+	      double tmp_12t =  pow(tmp_12x*tmp_12x + tmp_12y*tmp_12y + tmp_12z*tmp_12z,0.5);
+	      double tmp_21t =  pow(tmp_21x*tmp_21x + tmp_21y*tmp_21y + tmp_21z*tmp_21z,0.5);
+	      double tmp_22t =  pow(tmp_22x*tmp_22x + tmp_22y*tmp_22y + tmp_22z*tmp_22z,0.5);
+
+	      XYZTLorentzVector newMuon11;
+	      newMuon11 += XYZTLorentzVector(tmp_11x, tmp_11y, tmp_11z, tmp_11t);
+
+	      XYZTLorentzVector newMuon12;
+	      newMuon12 += XYZTLorentzVector(tmp_12x, tmp_12y, tmp_12z, tmp_12t);
+
+	      XYZTLorentzVector newMuon21;
+	      newMuon21 += XYZTLorentzVector(tmp_21x, tmp_21y, tmp_21z, tmp_21t);
+	      XYZTLorentzVector newMuon22;
+	      newMuon22 += XYZTLorentzVector(tmp_22x, tmp_22y, tmp_22z, tmp_22t);
+
+
+	      XYZTLorentzVector newMuonJet1;
+	      newMuonJet1 = newMuon11+newMuon12;
+	      XYZTLorentzVector newMuonJet2;
+	      newMuonJet2 = newMuon21+newMuon22;
+
+	      
+
+	      // std::cout << "(*muJets)[0].muon(" << m << ")->vx(): " << (*muJets)[0].muon(m)->vx() << std::endl;
+	      // std::cout << "(*muJets)[0].muon(" << m << ")->vy(): " << (*muJets)[0].muon(m)->vy() << std::endl;
+	      // std::cout << "(*muJets)[0].muon(" << m << ")->vz(): " << (*muJets)[0].muon(m)->vz() << std::endl;
+	      // std::cout << "(*muJets)[1].muon(" << m << ")->vx(): " << (*muJets)[1].muon(m)->vx() << std::endl;
+	      // std::cout << "(*muJets)[1].muon(" << m << ")->vy(): " << (*muJets)[1].muon(m)->vy() << std::endl;
+	      // std::cout << "(*muJets)[1].muon(" << m << ")->vz(): " << (*muJets)[1].muon(m)->vz() << std::endl;
+
+	      // std::cout << "(*muJets)[0].muon(" << m << ")->py(): " << (*muJets)[0].muon(m)->py() << std::endl;
+	      // std::cout << "(*muJets)[0].muon(" << m << ")->pz(): " << (*muJets)[0].muon(m)->pz() << std::endl;
+	      // std::cout << "(*muJets)[0].muon(" << m << ")->pt(): " << (*muJets)[0].muon(m)->pt() << std::endl;
+	      // std::cout << "(*muJets)[1].muon(" << m << ")->px(): " << (*muJets)[1].muon(m)->px() << std::endl;
+	      // std::cout << "(*muJets)[1].muon(" << m << ")->py(): " << (*muJets)[1].muon(m)->py() << std::endl;
+	      // std::cout << "(*muJets)[1].muon(" << m << ")->pz(): " << (*muJets)[1].muon(m)->pz() << std::endl;
+	      // std::cout << "(*muJets)[1].muon(" << m << ")->pt(): " << (*muJets)[1].muon(m)->pt() << std::endl;
+
+
+
+	      double rez2 = newZ2-beamSpot->position().z();
+	      double rex2 = newX2-beamSpot->position().x();
+	      double rey2 = newY2-beamSpot->position().y();
+
+	      double old_rex2 = oldX2-beamSpot->position().x();
+	      double old_rey2 = oldY2-beamSpot->position().y();
+
+
+	      // double repx1 = (*muJets)[0].p4().x() - (t1*muonjet1.x());
+	      // double repy1 = (*muJets)[0].p4().y() - (t1*muonjet1.y());
+	      // double repz1 = (*muJets)[0].p4().z() - (t1*muonjet1.z());
+	      // double repx2 = (*muJets)[1].p4().x() - (t2*muonjet2.x());
+	      // double repy2 = (*muJets)[1].p4().y() - (t2*muonjet2.y());
+	      // double repz2 = (*muJets)[1].p4().z() - (t2*muonjet2.z());
+
+	      double repx1 = muonjet1.x() - (t1*muonjet1.x());
+	      double repy1 = muonjet1.y() - (t1*muonjet1.y());
+	      double repz1 = muonjet1.z() - (t1*muonjet1.z());
+	      double repx2 = muonjet2.x() - (t2*muonjet2.x());
+	      double repy2 = muonjet2.y() - (t2*muonjet2.y());
+	      double repz2 = muonjet2.z() - (t2*muonjet2.z());
+
+	      double repx1p = muonjet1.x() + (t1*muonjet1.x());
+	      double repy1p = muonjet1.y() + (t1*muonjet1.y());
+	      double repz1p = muonjet1.z() + (t1*muonjet1.z());
+	      double repx2p = muonjet2.x() + (t2*muonjet2.x());
+	      double repy2p = muonjet2.y() + (t2*muonjet2.y());
+	      double repz2p = muonjet2.z() + (t2*muonjet2.z());
+
+
+	      double old_repx1 = muonjet1.x();
+	      double old_repy1 = muonjet1.y();
+	      double old_repz1 = muonjet1.z();
+	      double old_repx2 = muonjet2.x();
+	      double old_repy2 = muonjet2.y();
+	      double old_repz2 = muonjet2.z();
+
+	      if (verbose){
+		std::cout << "(*muJets)[0].p4().x(): " << (*muJets)[0].p4().x() << std::endl;
+		std::cout << "(*muJets)[0].p4().y(): " << (*muJets)[0].p4().y() << std::endl;
+		std::cout << "(*muJets)[0].p4().z(): " << (*muJets)[0].p4().z() << std::endl;
+		std::cout << "(*muJets)[0].p4().t(): " << (*muJets)[0].p4().t() << std::endl;
+		std::cout << "(*muJets)[1].p4().x(): " << (*muJets)[1].p4().x() << std::endl;
+		std::cout << "(*muJets)[1].p4().y(): " << (*muJets)[1].p4().y() << std::endl;
+		std::cout << "(*muJets)[1].p4().z(): " << (*muJets)[1].p4().z() << std::endl;
+		std::cout << "(*muJets)[1].p4().t(): " << (*muJets)[1].p4().t() << std::endl;
+		std::cout << std::endl;
+		std::cout << "(*muJets)[0].p4().x() + (t1*muonjet1.x()): " << (*muJets)[0].p4().x() + (t1*muonjet1.x()) << std::endl;
+		std::cout << "(*muJets)[0].p4().y() + (t1*muonjet1.y()): " << (*muJets)[0].p4().y() + (t1*muonjet1.y()) << std::endl;
+		std::cout << "(*muJets)[0].p4().z() + (t1*muonjet1.z()): " << (*muJets)[0].p4().z() + (t1*muonjet1.z()) << std::endl;
+		std::cout << "(*muJets)[1].p4().x() + (t2*muonjet2.x()): " << (*muJets)[1].p4().x() + (t2*muonjet2.x()) << std::endl;
+		std::cout << "(*muJets)[1].p4().y() + (t2*muonjet2.y()): " << (*muJets)[1].p4().y() + (t2*muonjet2.y()) << std::endl;
+		std::cout << "(*muJets)[1].p4().z() + (t2*muonjet2.z()): " << (*muJets)[1].p4().z() + (t2*muonjet2.z()) << std::endl;
+		std::cout << std::endl;
+		std::cout << "(*muJets)[0].p4().x() - (t1*muonjet1.x()): " << (*muJets)[0].p4().x() - (t1*muonjet1.x()) << std::endl;
+		std::cout << "(*muJets)[0].p4().y() - (t1*muonjet1.y()): " << (*muJets)[0].p4().y() - (t1*muonjet1.y()) << std::endl;
+		std::cout << "(*muJets)[0].p4().z() - (t1*muonjet1.z()): " << (*muJets)[0].p4().z() - (t1*muonjet1.z()) << std::endl;
+		std::cout << "(*muJets)[1].p4().x() - (t2*muonjet2.x()): " << (*muJets)[1].p4().x() - (t2*muonjet2.x()) << std::endl;
+		std::cout << "(*muJets)[1].p4().y() - (t2*muonjet2.y()): " << (*muJets)[1].p4().y() - (t2*muonjet2.y()) << std::endl;
+		std::cout << "(*muJets)[1].p4().z() - (t2*muonjet2.z()): " << (*muJets)[1].p4().z() - (t2*muonjet2.z()) << std::endl;
+		std::cout << std::endl;
+		std::cout << "muonjet1.x() - (t1*muonjet1.x()): " << muonjet1.x() - (t1*muonjet1.x()) << std::endl;
+		std::cout << "muonjet1.y() - (t1*muonjet1.y()): " << muonjet1.y() - (t1*muonjet1.y()) << std::endl;
+		std::cout << "muonjet1.z() - (t1*muonjet1.x()): " << muonjet1.z() - (t1*muonjet1.z()) << std::endl;
+		std::cout << "muonjet2.x() - (t2*muonjet2.x()): " << muonjet2.x() - (t2*muonjet2.x()) << std::endl;
+		std::cout << "muonjet2.y() - (t2*muonjet2.y()): " << muonjet2.y() - (t2*muonjet2.y()) << std::endl;
+		std::cout << "muonjet2.z() - (t2*muonjet2.z()): " << muonjet2.z() - (t2*muonjet2.z()) << std::endl;
+
+	   
+		std::cout << "muonjet1: " << muonjet1 << std::endl;
+		std::cout << "muonjet2: " << muonjet2 << std::endl;
+	      }       
+	      double rept1 =  pow(repx1*repx1 + repy1*repy1,0.5);
+
+	      double rept1p =  pow(repx1p*repx1p + repy1p*repy1p,0.5);
+
+	      double rept11 =  pow(repx1*repx1 + repy1*repy1+ repz1*repz1,0.5);
+
+	      double old_rept1 =  pow(old_repx1*old_repx1 + old_repy1*old_repy1,0.5);
+
+	      double re_dzmj1 = (rez1) - ((rex1)*repx1+(rey1)*repy1)/rept1 * repz1/rept1;
+
+	      double re_dzmj1p = (rez1) - ((rex1)*repx1p+(rey1)*repy1p)/rept1p * repz1p/rept1p;
+
+	      double re_dzmj11 = (rez1) - ((rex1)*repx1+(rey1)*repy1)/rept11 * repz1/rept11;
+
+	      double re_dzmj1_mod = (rez1) - ((rex1)*newMuonJet1.px()+(rey1)*newMuonJet1.py())/newMuonJet1.pt() * newMuonJet1.pz()/newMuonJet1.pt();
+	      double old_re_dzmj1 = (rez1) - ((old_rex1)*old_repx1+(old_rey1)*old_repy1)/old_rept1 * repz1/old_rept1;
+
+	      double re_dzmj111 = (rez1) - ((rex1)*old_repx1+(rey1)*old_repy1)/old_rept1 * old_repz1/old_rept1;
+
+
+	      // if (i==-20 && j==-20){
+	      // 	std::cout << "re_dzmj1: " << re_dzmj1 << std::endl;
+	      // 	std::cout << "re_dzmj1_mod: " << re_dzmj1_mod << std::endl;
+	      // 	std::cout << "old_re_dzmj1: " << old_re_dzmj1 << std::endl;
+	      // }
+
+
+	      if (verbose){
+
+		std::cout << "rez1: " << rez1 << std::endl;
+		std::cout << "rex1: " << rex1 << std::endl;
+		std::cout << "rey1: " << rey1 << std::endl;
+		std::cout << "repx1: " << repx1 << std::endl;
+		std::cout << "repy1: " << repy1 << std::endl;
+		std::cout << "repz1: " << repz1 << std::endl;
+		std::cout << "rept1: " << rept1 << std::endl;
+
+		std::cout << "beamSpot->position().x(): " << beamSpot->position().x() << std::endl;
+		std::cout << "beamSpot->position().y(): " << beamSpot->position().y() << std::endl;
+		std::cout << "beamSpot->position().z(): " << beamSpot->position().z() << std::endl;
+	      }
+	      double gez1 = genMuonGroups[0][0]->vertex().z()-beamSpot->position().z();
+	      double gex1 = genMuonGroups[0][0]->vertex().x()-beamSpot->position().x();
+	      double gey1 = genMuonGroups[0][0]->vertex().y()-beamSpot->position().y();
+	      double gepx1 = genMuonGroups[0][0]->p4().x() + genMuonGroups[0][1]->p4().x();
+	      double gepy1 = genMuonGroups[0][0]->p4().y() + genMuonGroups[0][1]->p4().y();
+	      double gepz1 = genMuonGroups[0][0]->p4().z() + genMuonGroups[0][1]->p4().z();
+	      double gept1 =  pow(gepx1*gepx1 + gepy1*gepy1,0.5);
+
+	      double gez2 = genMuonGroups[1][0]->vertex().z()-beamSpot->position().z();
+	      double gex2 = genMuonGroups[1][0]->vertex().x()-beamSpot->position().x();
+	      double gey2 = genMuonGroups[1][0]->vertex().y()-beamSpot->position().y();
+	      double gepx2 = genMuonGroups[1][0]->p4().x() + genMuonGroups[1][1]->p4().x();
+	      double gepy2 = genMuonGroups[1][0]->p4().y() + genMuonGroups[1][1]->p4().y();
+	      double gepz2 = genMuonGroups[1][0]->p4().z() + genMuonGroups[1][1]->p4().z();
+	      double gept2 =  pow(gepx2*gepx2 + gepy2*gepy2,0.5);
+	      if (verbose){
+
+		std::cout << "gez1: " << gez1 << std::endl;
+		std::cout << "gex1: " << gex1 << std::endl;
+		std::cout << "gey1: " << gey1 << std::endl;
+		std::cout << "gepx1: " << gepx1 << std::endl;
+		std::cout << "gepy1: " << gepy1 << std::endl;
+		std::cout << "gepz1: " << gepz1 << std::endl;
+		std::cout << "gept1: " << gept1 << std::endl;
+		std::cout << std::endl;
+
+		std::cout << "rez1: " << rez1 << std::endl;
+		std::cout << "rex1: " << rex1 << std::endl;
+		std::cout << "rey1: " << rey1 << std::endl;
+		std::cout << "repx1: " << repx1 << std::endl;
+		std::cout << "repy1: " << repy1 << std::endl;
+		std::cout << "repz1: " << repz1 << std::endl;
+		std::cout << "rept1: " << rept1 << std::endl;
+		std::cout << std::endl;
+
+		std::cout << "fabs(gez1-rez1): " << fabs(gez1-rez1) << std::endl;
+		std::cout << "fabs(gex1-rex1): " << fabs(gex1-rex1) << std::endl;
+		std::cout << "fabs(gey1-rey1): " << fabs(gey1-rey1) << std::endl;
+		std::cout << "fabs(gepx1-repx1): " << fabs(gepx1-repx1) << std::endl;
+		std::cout << "fabs(gepy1-repy1): " << fabs(gepy1-repy1) << std::endl;
+		std::cout << "fabs(gepz1-repz1): " << fabs(gepz1-repz1) << std::endl;
+		std::cout << "fabs(gept1-rept1): " << fabs(gept1-rept1) << std::endl;
+
+		std::cout << std::endl;
+		std::cout << "Recalc true vert: " <<  (gez1) - ((gex1)*gepx1+(gey1)*gepy1)/gept1 * gepz1/gept1 << std::endl;
+		std::cout << "Recalc reco vert: " <<  (rez1) - ((rex1)*repx1+(rey1)*repy1)/rept1 * repz1/rept1 << std::endl;
+		std::cout << "Reco vert w/true pvalues: " <<  (rez1) - ((rex1)*gepx1+(rey1)*gepy1)/gept1 * gepz1/gept1 << std::endl;
+	      }
+	      double rept2 =  pow(repx2*repx2 + repy2*repy2,0.5);
+
+	      double rept2p =  pow(repx2p*repx2p + repy2p*repy2p,0.5);
+
+	      double rept22 =  pow(repx2*repx2 + repy2*repy2 + repz2*repz2,0.5);
+
+
+	      double old_rept2 =  pow(old_repx2*old_repx2 + old_repy2*old_repy2,0.5);
+	      double re_dzmj2 = (rez2) - ((rex2)*repx2+(rey2)*repy2)/rept2 * repz2/rept2;
+
+	      double re_dzmj2p = (rez2) - ((rex2)*repx2p+(rey2)*repy2p)/rept2p * repz2p/rept2p;
+
+	      double re_dzmj22 = (rez2) - ((rex2)*repx2+(rey2)*repy2)/rept22 * repz2/rept22;
+
+	      double re_dzmj222 = (rez2) - ((rex2)*old_repx2+(rey2)*old_repy2)/old_rept2 * old_repz2/old_rept2;
+
+	      double old_re_dzmj2 = (rez2) - ((old_rex2)*old_repx2+(old_rey2)*old_repy2)/old_rept2 * repz2/old_rept2;
+	      double re_dzmj2_mod = (rez2) - ((rex2)*newMuonJet2.px()+(rey2)*newMuonJet2.py())/newMuonJet2.pt() * newMuonJet2.pz()/newMuonJet2.pt();
+
+	      if (verbose){
+		std::cout << "re_dzmj2: " << re_dzmj2 << std::endl;
+		std::cout << "re_dzmj2_mod: " << re_dzmj2_mod << std::endl;
+		std::cout << "old_re_dzmj2: " << old_re_dzmj2 << std::endl;
+		std::cout << "fabs(re_dzmj1_mod-re_dzmj2_mod): " << fabs(re_dzmj1_mod-re_dzmj2_mod) << std::endl;
+	      }
+
+	      if (verbose){
+		std::cout << "new1 xyz: " << newX1 << "," << newY1 << "," << newZ1 << std::endl;
+		std::cout << "new2 xyz: " << newX2 << "," << newY2 << "," << newZ2 << std::endl;
+		std::cout << "new1 z, old xy: " << oldX1 << "," << oldY1 << "," << newZ1 << std::endl;
+		std::cout << "new2 z, old xy: " << oldX2 << "," << oldY2 << "," << newZ2 << std::endl;
+	      }
+
+	      if (i==19 && j==-15){		
+		bool needthis = true;
+
+		// just need to modified pz?
+
+		std::cout << std::endl << " i 19, j15 dz: " << fabs(re_dzmj1_mod-re_dzmj2_mod) << std::endl;
+		  
+		std::cout << "pt: " << sqrt(((*muJets)[0].muon(0)->px()*(*muJets)[0].muon(0)->px())+((*muJets)[0].muon(0)->py()*(*muJets)[0].muon(0)->py())) << std::endl;
+		// double term1 = ((*muJets)[0].muon(0)->px()+(newX1-oldX1))*((*muJets)[0].muon(0)->px()+(newX1-oldX1));
+		// double term2 = ((*muJets)[0].muon(0)->py()+(newY1-oldY1))*((*muJets)[0].muon(0)->py()+(newY1-oldY1));
+
+		double term1 = ((*muJets)[0].muon(0)->px()+fabs(newX1-oldX1))*((*muJets)[0].muon(0)->px()+fabs(newX1-oldX1));
+		double term2 = ((*muJets)[0].muon(0)->py()+fabs(newY1-oldY1))*((*muJets)[0].muon(0)->py()+fabs(newY1-oldY1));
+
+		// double term1 = ((*muJets)[0].muon(0)->px()+(oldX1-newX1))*((*muJets)[0].muon(0)->px()+(oldX1-newX1));
+		// double term2 = ((*muJets)[0].muon(0)->py()+(oldY1-newY1))*((*muJets)[0].muon(0)->py()+(oldY1-newY1));
+
+		std::cout << "pt new: " << sqrt(term1 + term2) << std::endl;
+		
+
+
+		std::cout << "newX1: " << newX1 << ", old X1: " << oldX1 << ", diff: " << newX1-oldX1 << std::endl;
+		std::cout << "newY1: " << newY1 << ", old Y1: " << oldY1 << ", diff: " << newY1-oldY1 << std::endl;
+		std::cout << "newZ1: " << newZ1 << ", old Z1: " << oldZ1 << ", diff: " << newZ1-oldZ1 << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().x(): " << (*muJets)[0].muon(0)->p4().x() << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().y(): " << (*muJets)[0].muon(0)->p4().y() << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().z(): " << (*muJets)[0].muon(0)->p4().z() << std::endl;
+		std::cout << "(*muJets)[0].muon(1)->p4().x(): " << (*muJets)[0].muon(1)->p4().x() << std::endl;
+		std::cout << "(*muJets)[0].muon(1)->p4().y(): " << (*muJets)[0].muon(1)->p4().y() << std::endl;
+		std::cout << "(*muJets)[0].muon(1)->p4().z(): " << (*muJets)[0].muon(1)->p4().z() << std::endl;
+		std::cout << "(*muJets)[1].muon(0)->p4().x(): " << (*muJets)[1].muon(0)->p4().x() << std::endl;
+		std::cout << "(*muJets)[1].muon(0)->p4().y(): " << (*muJets)[1].muon(0)->p4().y() << std::endl;
+		std::cout << "(*muJets)[1].muon(0)->p4().z(): " << (*muJets)[1].muon(0)->p4().z() << std::endl;
+		std::cout << "(*muJets)[1].muon(1)->p4().x(): " << (*muJets)[1].muon(1)->p4().x() << std::endl;
+		std::cout << "(*muJets)[1].muon(1)->p4().y(): " << (*muJets)[1].muon(1)->p4().y() << std::endl;
+		std::cout << "(*muJets)[1].muon(1)->p4().z(): " << (*muJets)[1].muon(1)->p4().z() << std::endl;
+
+
+		std::cout << "newX2: " << newX2 << ", old X2: " << oldX2 << ", diff: " << newX2-oldX2 << std::endl;
+		std::cout << "newY2: " << newY2 << ", old Y2: " << oldY2 << ", diff: " << newY2-oldY2 << std::endl;
+		std::cout << "newZ2: " << newZ2 << ", old Z2: " << oldZ2 << ", diff: " << newZ2-oldZ2 << std::endl;
+		std::cout << "(*muJets)[1].muon(0)->p4().x(): " << (*muJets)[1].muon(0)->p4().x() << std::endl;
+		std::cout << "(*muJets)[1].muon(0)->p4().y(): " << (*muJets)[1].muon(0)->p4().y() << std::endl;
+		std::cout << "(*muJets)[1].muon(0)->p4().z(): " << (*muJets)[1].muon(0)->p4().z() << std::endl;
+
+		std::cout << "genMuonGroups[0][0]->px(): " << genMuonGroups[0][0]->px() << std::endl;
+		std::cout << "genMuonGroups[0][0]->py(): " << genMuonGroups[0][0]->py() << std::endl;
+		std::cout << "genMuonGroups[0][0]->pz(): " << genMuonGroups[0][0]->pz() << std::endl;
+		std::cout << "genMuonGroups[0][1]->px(): " << genMuonGroups[0][1]->px() << std::endl;
+		std::cout << "genMuonGroups[0][1]->py(): " << genMuonGroups[0][1]->py() << std::endl;
+		std::cout << "genMuonGroups[0][1]->pz(): " << genMuonGroups[0][1]->pz() << std::endl;
+		std::cout << "genMuonGroups[1][0]->px(): " << genMuonGroups[1][0]->px() << std::endl;
+		std::cout << "genMuonGroups[1][0]->py(): " << genMuonGroups[1][0]->py() << std::endl;
+		std::cout << "genMuonGroups[1][0]->pz(): " << genMuonGroups[1][0]->pz() << std::endl;
+		std::cout << "genMuonGroups[1][1]->px(): " << genMuonGroups[1][1]->px() << std::endl;
+		std::cout << "genMuonGroups[1][1]->py(): " << genMuonGroups[1][1]->py() << std::endl;
+		std::cout << "genMuonGroups[1][1]->pz(): " << genMuonGroups[1][1]->pz() << std::endl;
+
+		std::cout << "tmp_11x = (*muJets)[0].muon(0)->p4().x()+(newX1-oldX1) : " << tmp_11x << std::endl;
+		std::cout << "tmp_11y = (*muJets)[0].muon(0)->p4().y()+(newY1-oldY1) : " << tmp_11y << std::endl;
+		std::cout << "tmp_11z = (*muJets)[0].muon(0)->p4().z()+(newZ1-oldZ1) : " << tmp_11z << std::endl;
+		std::cout << "tmp_12x = (*muJets)[0].muon(1)->p4().x()+(newX1-oldX1) : " << tmp_12x << std::endl;
+		std::cout << "tmp_12y = (*muJets)[0].muon(1)->p4().y()+(newY1-oldY1) : " << tmp_12y << std::endl;
+		std::cout << "tmp_12z = (*muJets)[0].muon(1)->p4().z()+(newZ1-oldZ1) : " << tmp_12z << std::endl;
+		std::cout << "tmp_21x = (*muJets)[1].muon(0)->p4().x()+(newX2-oldX2) : " << tmp_21x << std::endl;
+		std::cout << "tmp_21y = (*muJets)[1].muon(0)->p4().y()+(newY2-oldY2) : " << tmp_21y << std::endl;
+		std::cout << "tmp_21z = (*muJets)[1].muon(0)->p4().z()+(newZ2-oldZ2) : " << tmp_21z << std::endl;
+		std::cout << "tmp_22x = (*muJets)[1].muon(1)->p4().x()+(newX2-oldX2) : " << tmp_22x << std::endl;
+		std::cout << "tmp_22y = (*muJets)[1].muon(1)->p4().y()+(newY2-oldY2) : " << tmp_22y << std::endl;
+		std::cout << "tmp_22z = (*muJets)[1].muon(1)->p4().z()+(newZ2-oldZ2) : " << tmp_22z << std::endl;
+
+		std::cout << "(*muJets)[0].p4().x()+(newX1-oldX1): " << (*muJets)[0].p4().x()+(newX1-oldX1) << std::endl;
+		std::cout << "(*muJets)[0].p4().y()+(newY1-oldY1): " << (*muJets)[0].p4().y()+(newY1-oldY1) << std::endl;
+		std::cout << "(*muJets)[0].p4().z()+(newZ1-oldZ1): " << (*muJets)[0].p4().z()+(newZ1-oldZ1) << std::endl;
+		std::cout << "(*muJets)[1].p4().x()+(newX2-oldX2): " << (*muJets)[1].p4().x()+(newX2-oldX2) << std::endl;
+		std::cout << "(*muJets)[1].p4().y()+(newY2-oldY2): " << (*muJets)[1].p4().y()+(newY2-oldY2) << std::endl;
+		std::cout << "(*muJets)[1].p4().z()+(newZ2-oldZ2): " << (*muJets)[1].p4().z()+(newZ2-oldZ2) << std::endl;
+
+		std::cout << "(*muJets)[0].p4().x(): " << (*muJets)[0].p4().x() << std::endl;
+		std::cout << "(*muJets)[0].p4().y(): " << (*muJets)[0].p4().y() << std::endl;
+		std::cout << "(*muJets)[0].p4().z(): " << (*muJets)[0].p4().z() << std::endl;
+		std::cout << "(*muJets)[1].p4().x(): " << (*muJets)[1].p4().x() << std::endl;
+		std::cout << "(*muJets)[1].p4().y(): " << (*muJets)[1].p4().y() << std::endl;
+		std::cout << "(*muJets)[1].p4().z(): " << (*muJets)[1].p4().z() << std::endl;
+
+
+
+		std::cout << "gex1: " << gex1 << std::endl;
+		std::cout << "gey1: " << gey1 << std::endl;
+		std::cout << "gez1: " << gez1 << std::endl;
+		std::cout << "gepx1: " << gepx1 << std::endl;
+		std::cout << "gepy1: " << gepy1 << std::endl;
+		std::cout << "gepz1: " << gepz1 << std::endl;
+		std::cout << "gept1: " << gept1 << std::endl;
+
+		std::cout << "gex2: " << gex2 << std::endl;
+		std::cout << "gey2: " << gey2 << std::endl;
+		std::cout << "gez2: " << gez2 << std::endl;
+		std::cout << "gepx2: " << gepx2 << std::endl;
+		std::cout << "gepy2: " << gepy2 << std::endl;
+		std::cout << "gepz2: " << gepz2 << std::endl;
+		std::cout << "gept2: " << gept2 << std::endl;
+		std::cout << std::endl;
+
+		std::cout << "re_dzmj1: " << re_dzmj1 << ", re_dzmj2: " << re_dzmj2 << ", fabs: " << fabs(re_dzmj1-re_dzmj2) << std::endl;
+		std::cout << "re_dzmj11: " << re_dzmj11 << ", re_dzmj22: " << re_dzmj22 << ", fabs: " << fabs(re_dzmj11-re_dzmj22) << std::endl;
+		std::cout << "re_dzmj111: " << re_dzmj111 << ", re_dzmj222: " << re_dzmj222 << ", fabs: " << fabs(re_dzmj111-re_dzmj222) << std::endl;
+		std::cout << "re_dzmj1p: " << re_dzmj1p << ", re_dzmj2p: " << re_dzmj2p << ", fabs: " << fabs(re_dzmj1p-re_dzmj2p) << std::endl;
+
+		std::cout << "old_re_dzmj1: " << old_re_dzmj1 << ", old_re_dzmj2: " << old_re_dzmj2 << ", fabs: " << fabs(old_re_dzmj1-old_re_dzmj2) << std::endl;
+		std::cout << "re_dzmj1_mod: " << re_dzmj1 << ", re_dzmj2_mod: " << re_dzmj2 << ", fabs: " << fabs(re_dzmj1_mod-re_dzmj2_mod) << std::endl;
+		std::cout << "Recalc true 1 vert: " <<  (gez1) - ((gex1)*gepx1+(gey1)*gepy1)/gept1 * gepz1/gept1 << std::endl;
+		std::cout << "Recalc true 2 vert: " <<  (gez2) - ((gex2)*gepx2+(gey2)*gepy2)/gept2 * gepz2/gept2 << std::endl << std::endl;;
+
+		std::cout << "fabs(gez1-rez1): " << fabs(gez1-rez1) << std::endl;
+		std::cout << "fabs(gex1-rex1): " << fabs(gex1-rex1) << std::endl;
+		std::cout << "fabs(gey1-rey1): " << fabs(gey1-rey1) << std::endl;
+		std::cout << "fabs(gepx1-repx1): " << fabs(gepx1-repx1) << std::endl;
+		std::cout << "fabs(gepy1-repy1): " << fabs(gepy1-repy1) << std::endl;
+		std::cout << "fabs(gepz1-repz1): " << fabs(gepz1-repz1) << std::endl;
+		std::cout << "fabs(gept1-rept1): " << fabs(gept1-rept1) << std::endl << std::endl;
+
+		std::cout << "Reco vert w/true pz1: " <<  (rez1) - ((rex1)*repx1+(rey1)*repy1)/rept1 * gepz1/rept1 << std::endl << std::endl;
+		std::cout << "Reco vert w/true pt1,pz1: " <<  (rez1) - ((rex1)*repx1+(rey1)*repy1)/gept1 * gepz1/gept1 << std::endl << std::endl;
+		std::cout << "Reco vert w/true p*: " <<  (rez1) - ((rex1)*gepx1+(rey1)*gepy1)/gept1 * gepz1/gept1 << std::endl << std::endl;
+
+		std::cout << "components rez1: " << rez1 << " - ((rex1)*repx1+(rey1)*repy1)/rept1: " << ((rex1)*repx1+(rey1)*repy1)/rept1 << " * repz1/rept1: " << repz1/rept1 << std::endl;
+		std::cout << "components rez1: " << rez1 << " - ((rex1)*repx1+(rey1)*repy1)/rept1 * repz1/rept1 : " << ((rex1)*repx1+(rey1)*repy1)/rept1 * repz1/rept1 << std::endl;
+
+		std::cout << "components gez1: " << gez1 << " - ((gex1)*gepx1+(gey1)*gepy1)/gept1: " << ((gex1)*gepx1+(gey1)*gepy1)/gept1 << " * gepz1/gept1: " << gepz1/gept1 << std::endl;
+		std::cout << "components gez1: " << gez1 << " - ((gex1)*gepx1+(gey1)*gepy1)/gept1 * gepz1/gept1 : " << ((gex1)*gepx1+(gey1)*gepy1)/gept1 * gepz1/gept1 << std::endl;
+
+		std::cout << "fabs(gez2-rez2): " << fabs(gez2-rez2) << std::endl;
+		std::cout << "fabs(gex2-rex2): " << fabs(gex2-rex2) << std::endl;
+		std::cout << "fabs(gey2-rey2): " << fabs(gey2-rey2) << std::endl;
+		std::cout << "fabs(gepx2-repx2): " << fabs(gepx2-repx2) << std::endl;
+		std::cout << "fabs(gepy2-repy2): " << fabs(gepy2-repy2) << std::endl;
+		std::cout << "fabs(gepz2-repz2): " << fabs(gepz2-repz2) << std::endl;
+		std::cout << "fabs(gept2-rept2): " << fabs(gept2-rept2) << std::endl << std::endl;
+
+
+		std::cout << std::endl;
+		std::cout << "new1 xyz: " << newX1 << "," << newY1 << "," << newZ1 << std::endl;
+		std::cout << "new1 z, old xy: " << oldX1 << "," << oldY1 << "," << newZ1 << std::endl;
+
+		for(int m=0;m<mj1muons;m++){
+		  std::cout << "(*muJets)[0].muon(" << m << ")->p4(): " << (*muJets)[0].muon(m)->p4() << std::endl;
+		  std::cout << "(*muJets)[0].muon(" << m << ")->pt(): " << (*muJets)[0].muon(m)->pt() << std::endl;
+		  std::cout << "(*muJets)[0].muon(" << m << ")->eta(): " << (*muJets)[0].muon(m)->eta() << std::endl;
+		  std::cout << "(*muJets)[0].muon(" << m << ")->phi(): " << (*muJets)[0].muon(m)->phi() << std::endl;
+		  // std::cout << "(*muJets)[0].muon(" << m << ")->pt(byhand) : " << sqrt(((*muJets)[0].muon(m)->p4().x()*(*muJets)[0].muon(m)->p4().x())+((*muJets)[0].muon(m)->p4().y()*(*muJets)[0].muon(m)->p4().y())) << std::endl;
+		}
+		for(int m=0;m<mj2muons;m++){
+		  std::cout << "(*muJets)[1].muon(" << m << ")->p4(): " << (*muJets)[1].muon(m)->p4() << std::endl;
+		  std::cout << "(*muJets)[1].muon(" << m << ")->pt(): " << (*muJets)[1].muon(m)->pt() << std::endl;
+		  std::cout << "(*muJets)[1].muon(" << m << ")->eta(): " << (*muJets)[1].muon(m)->eta() << std::endl;
+		  std::cout << "(*muJets)[1].muon(" << m << ")->phi(): " << (*muJets)[1].muon(m)->phi() << std::endl;
+		  // std::cout << "(*muJets)[1].muon(" << m << ")->pt(byhand) : " << sqrt(((*muJets)[1].muon(m)->p4().x()*(*muJets)[1].muon(m)->p4().x())+((*muJets)[1].muon(m)->p4().y()*(*muJets)[1].muon(m)->p4().y())) << std::endl;
+		}
+
+		std::cout << "beamSpot->position().x(): " << beamSpot->position().x() << std::endl;
+		std::cout << "beamSpot->position().y(): " << beamSpot->position().y() << std::endl;
+		std::cout << "beamSpot->position().z(): " << beamSpot->position().z() << std::endl;
+
+		// double new_r1 = sqrt((muonjet1.x()*muonjet1.x()) + (muonjet1.y()*muonjet1.y()) + ((muonjet1.z()+((circle1Size/20)*i))*(muonjet1.z()+((circle1Size/20)*i))));
+		// double new_r2 = sqrt((muonjet2.x()*muonjet2.x()) + (muonjet2.y()*muonjet2.y()) + ((muonjet2.z()+((circle2Size/20)*j))*(muonjet2.z()+((circle2Size/20)*j))));
+
+		// double new_r1 = sqrt(((muonjet1.x()+newX1)*(muonjet1.x()+newX1)) + ((muonjet1.y()+newY1)*(muonjet1.y()+newY1)) + ((muonjet1.z()+newZ1)*(muonjet1.z()+newZ1)));
+		// double new_r2 = sqrt(((muonjet2.x()+newX2)*(muonjet2.x()+newX2)) + ((muonjet2.y()+newY2)*(muonjet2.y()+newY2)) + ((muonjet2.z()+newZ2)*(muonjet2.z()+newZ2)));
+
+		std::cout << "true vertex 1 xyz: " << genMuonGroups[0][0]->vertex().x() << "," << genMuonGroups[0][0]->vertex().y() << "," << genMuonGroups[0][0]->vertex().z() << std::endl;
+		std::cout << "true vertex 2 xyz: " << genMuonGroups[1][0]->vertex().x() << "," << genMuonGroups[1][0]->vertex().y() << "," << genMuonGroups[1][0]->vertex().z() << std::endl;
+		  
+		  
+		std::cout << "new1 xyz: " << newX1 << "," << newY1 << "," << newZ1 << std::endl;
+		std::cout << "new2 xyz: " << newX2 << "," << newY2 << "," << newZ2 << std::endl;
+		std::cout << "new1 z, old xy: " << oldX1 << "," << oldY1 << "," << newZ1 << std::endl;
+		std::cout << "new2 z, old xy: " << oldX2 << "," << oldY2 << "," << newZ2 << std::endl;
+
+		double new_r1 = sqrt(((repx1)*(repx1)) + ((repy1)*(repy1)) + ((repz1)*(repz1)));
+		double new_r2 = sqrt(((repx2)*(repx2)) + ((repy2)*(repy2)) + ((repz2)*(repz2)));
+
+		std::cout << "muonjet1 x modified: " << new_r1 * sin(muonjet1.theta()) * cos(muonjet1.phi()) << std::endl;
+		std::cout << "muonjet1 y modified: " << new_r1 * sin(muonjet1.theta()) * sin(muonjet1.phi()) << std::endl;
+		std::cout << "muonjet1 z modified: " << new_r1 * cos(muonjet1.theta()) << std::endl;
+       
+		std::cout << "muonjet2 x modified: " << new_r2 * sin(muonjet2.theta()) * cos(muonjet2.phi()) << std::endl;
+		std::cout << "muonjet2 y modified: " << new_r2 * sin(muonjet2.theta()) * sin(muonjet2.phi()) << std::endl;
+		std::cout << "muonjet2 z modified: " << new_r2 * cos(muonjet2.theta()) << std::endl;
+
+
+		std::cout << "muonjet1.theta(): " << muonjet1.theta() << ", phi: " << muonjet1.phi() << ", eta: " << muonjet1.eta() << std::endl;
+		std::cout << "muonjet2.theta(): " << muonjet2.theta() << ", phi: " << muonjet2.phi() << ", eta: " << muonjet2.eta() << std::endl;
+
+		std::cout << "genMuonGroups[0][0]->theta(): " << genMuonGroups[0][0]->theta() << ", phi: " << genMuonGroups[0][0]->phi() << ", eta: " << genMuonGroups[0][0]->eta() << std::endl;
+		std::cout << "genMuonGroups[0][1]->theta(): " << genMuonGroups[0][1]->theta() << ", phi: " << genMuonGroups[0][1]->phi() << ", eta: " << genMuonGroups[0][1]->eta() << std::endl;
+		std::cout << "genMuonGroups[1][0]->theta(): " << genMuonGroups[1][0]->theta() << ", phi: " << genMuonGroups[1][0]->phi() << ", eta: " << genMuonGroups[1][0]->eta() << std::endl;
+		std::cout << "genMuonGroups[1][1]->theta(): " << genMuonGroups[1][1]->theta() << ", phi: " << genMuonGroups[1][1]->phi() << ", eta: " << genMuonGroups[1][1]->eta() << std::endl;
+
+
+		std::cout << "(t1*muonjet1.x()): " << (t1*muonjet1.x()) << std::endl;
+		std::cout << "(t1*muonjet1.y()): " << (t1*muonjet1.y()) << std::endl;
+		std::cout << "(t1*muonjet1.z()): " << (t1*muonjet1.z()) << std::endl;
+		std::cout << "(muonjet1.x()): " << (muonjet1.x()) << std::endl;
+		std::cout << "(muonjet1.y()): " << (muonjet1.y()) << std::endl;
+		std::cout << "(muonjet1.z()): " << (muonjet1.z()) << std::endl;
+
+		std::cout << "(t2*muonjet2.x()): " << (t2*muonjet2.x()) << std::endl;
+		std::cout << "(t2*muonjet2.y()): " << (t2*muonjet2.y()) << std::endl;
+		std::cout << "(t2*muonjet2.z()): " << (t2*muonjet2.z()) << std::endl;
+		std::cout << "(muonjet2.x()): " << (muonjet2.x()) << std::endl;
+		std::cout << "(muonjet2.y()): " << (muonjet2.y()) << std::endl;
+		std::cout << "(muonjet2.z()): " << (muonjet2.z()) << std::endl;
+
+
+		std::cout << "genMuonGroups[0][0]->p4(): " << genMuonGroups[0][0]->p4() << std::endl;
+		std::cout << "genMuonGroups[0][1]->p4(): " << genMuonGroups[0][1]->p4() << std::endl;
+		std::cout << "genMuonGroups[1][0]->p4(): " << genMuonGroups[1][0]->p4() << std::endl;
+		std::cout << "genMuonGroups[1][1]->p4(): " << genMuonGroups[1][1]->p4() << std::endl;
+
+		std::cout << "(gen_muonjet1.x()): " << (genMuonGroups[0][0]->px()+genMuonGroups[0][1]->px()) << std::endl;
+		std::cout << "(gen_muonjet1.y()): " << (genMuonGroups[0][0]->py()+genMuonGroups[0][1]->py()) << std::endl;
+		std::cout << "(gen_muonjet1.z()): " << (genMuonGroups[0][0]->pz()+genMuonGroups[0][1]->pz()) << std::endl;
+
+		std::cout << "(gen_muonjet2.x()): " << (genMuonGroups[1][0]->px()+genMuonGroups[1][1]->px()) << std::endl;
+		std::cout << "(gen_muonjet2.y()): " << (genMuonGroups[1][0]->py()+genMuonGroups[1][1]->py()) << std::endl;
+		std::cout << "(gen_muonjet2.z()): " << (genMuonGroups[1][0]->pz()+genMuonGroups[1][1]->pz()) << std::endl;
+
+		double new_pt1 = sqrt((muonjet1.x()*muonjet1.x()) + (muonjet1.y()*muonjet1.y()) + (muonjet1.z()*muonjet1.z()));
+		double new_pt2 = sqrt((muonjet2.x()*muonjet2.x()) + (muonjet2.y()*muonjet2.y()) + (muonjet2.z()*muonjet2.z()));
+
+		std::cout << "(muonjet1.pt()): " << (new_pt1) << std::endl;
+		std::cout << "(muonjet2.pt()): " << (new_pt2) << std::endl;
+		std::cout << "(rept1): " << (rept1) << std::endl;
+		std::cout << "(rept2): " << (rept2) << std::endl;
+
+		std::cout << "(gen_muonjet1.pt()): " << (genMuonGroups[0][0]->pt()+genMuonGroups[0][1]->pt()) << std::endl;
+		std::cout << "(gen_muonjet2.pt()): " << (genMuonGroups[1][0]->pt()+genMuonGroups[1][1]->pt()) << std::endl;
+
+		std::cout << std::endl << "Figure out x" << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().x()+(newX1-oldX1) : " << tmp_11x << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().x() : " << tmp_11x << std::endl;
+		std::cout << "(*muJets)[0].muon(1)->p4().x()+(newX1-oldX1) : " << tmp_12x << std::endl;
+		std::cout << "(*muJets)[0].muon(1)->p4().x() : " << (*muJets)[0].muon(1)->p4().x() << std::endl;
+		std::cout << "repx1 = muonjet1.x() - (t1*muonjet1.x()) " << repx1 << std::endl;
+		std::cout << "repx1 = muonjet1.x() + (t1*muonjet1.x()) " << muonjet1.x() + (t1*muonjet1.x()) << std::endl;
+		std::cout << "muonjet1.x()" << muonjet1.x() << std::endl;
+		std::cout << "genMuonGroups[0][0]->p4(): " << genMuonGroups[0][0]->p4() << std::endl;
+		std::cout << "genMuonGroups[0][1]->p4(): " << genMuonGroups[0][1]->p4() << std::endl;
+		std::cout << "(gen_muonjet1.x()): " << (genMuonGroups[0][0]->px()+genMuonGroups[0][1]->px()) << std::endl << std::endl;
+
+		std::cout << "Figure out y" << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().y()+(newY1-oldY1) : " << tmp_11y << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().y() : " << tmp_11y << std::endl;
+		std::cout << "(*muJets)[0].muon(1)->p4().y()+(newY1-oldY1) : " << tmp_12y << std::endl;
+		std::cout << "(*muJets)[0].muon(1)->p4().y() : " << (*muJets)[0].muon(1)->p4().y() << std::endl;
+		std::cout << "repy1 = muonjet1.y() - (t1*muonjet1.y()) " << repy1 << std::endl;
+		std::cout << "repy1 = muonjet1.y() + (t1*muonjet1.y()) " << muonjet1.y() + (t1*muonjet1.y()) << std::endl;
+		std::cout << "muonjet1.y()" << muonjet1.y() << std::endl;
+		std::cout << "genMuonGroups[0][0]->p4(): " << genMuonGroups[0][0]->p4() << std::endl;
+		std::cout << "genMuonGroups[0][1]->p4(): " << genMuonGroups[0][1]->p4() << std::endl;
+		std::cout << "(gen_muonjet1.y()): " << (genMuonGroups[0][0]->py()+genMuonGroups[0][1]->py()) << std::endl << std::endl;
+
+		std::cout << "Figure out z" << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().z()+(newZ1-oldZ1) : " << tmp_11z << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().z() : " << (*muJets)[0].muon(0)->p4().z() << std::endl;
+		std::cout << "(*muJets)[0].muon(1)->p4().z()+(newZ1-oldZ1) : " << tmp_12z << std::endl;
+		std::cout << "(*muJets)[0].muon(1)->p4().z() : " << (*muJets)[0].muon(1)->p4().z() << std::endl;
+		std::cout << "repz1 = muonjet1.z() - (t1*muonjet1.z()) " << repz1 << std::endl;
+		std::cout << "repz1 = muonjet1.z() + (t1*muonjet1.z()) " << muonjet1.z() + (t1*muonjet1.z()) << std::endl;
+		std::cout << "muonjet1.z()" << muonjet1.z() << std::endl;
+		std::cout << "genMuonGroups[0][0]->p4(): " << genMuonGroups[0][0]->p4() << std::endl;
+		std::cout << "genMuonGroups[0][1]->p4(): " << genMuonGroups[0][1]->p4() << std::endl;
+		std::cout << "(gen_muonjet1.z()): " << (genMuonGroups[0][0]->pz()+genMuonGroups[0][1]->pz()) << std::endl << std::endl;
+
+
+
+
+		for(int m=0;m<mj1muons;m++){
+		  std::cout << "(*muJets)[0].muon(" << m << ")->px(): " << (*muJets)[0].muon(m)->px() << std::endl;
+		  std::cout << "genMuonGroups[0][" << m << "]->px(): " << genMuonGroups[0][m]->px() << std::endl;
+		  std::cout << "(*muJets)[0].muon(" << m << ")->py(): " << (*muJets)[0].muon(m)->py() << std::endl;
+		  std::cout << "genMuonGroups[0][" << m << "]->py(): " << genMuonGroups[0][m]->py() << std::endl;
+		  std::cout << "(*muJets)[0].muon(" << m << ")->pz(): " << (*muJets)[0].muon(m)->pz() << std::endl;
+		  std::cout << "genMuonGroups[0][" << m << "]->pz(): " << genMuonGroups[0][m]->pz() << std::endl;
+		}
+
+
+		double def_rex1 = newX1-beamSpot->position().x();
+		double def_rey1 = newY1-beamSpot->position().y();
+		double def_rez1 = newZ1-beamSpot->position().z();
+
+		double def2_rex1 = oldX1-beamSpot->position().x();
+		double def2_rey1 = oldY1-beamSpot->position().y();
+		double def2_rez1 = oldZ1-beamSpot->position().z();
+
+
+
+		double def_repx1 = muonjet1.x();
+		double def_repy1 = muonjet1.y();
+		double def_repz1 = muonjet1.z();
+		double def_repx2 = muonjet2.x();
+		double def_repy2 = muonjet2.y();
+		double def_repz2 = muonjet2.z();
+		double def_rept1 =  pow(def_repx1*def_repx1 + def_repy1*def_repy1,0.5);
+		double def_re_dzmj1 = (def_rez1) - ((def_rex1)*def_repx1+(def_rey1)*def_repy1)/def_rept1 * def_repz1/def_rept1;
+		double def2_re_dzmj1 = (def2_rez1) - ((def2_rex1)*def_repx1+(def2_rey1)*def_repy1)/def_rept1 * def_repz1/def_rept1;
+
+		double def3_re_dzmj1 = (def_rez1) - ((def_rex1)*def_repx1+(def_rey1)*def_repy1)/def_rept1 * repz1/def_rept1;
+		double def4_re_dzmj1 = (def_rez1) - ((def_rex1)*def_repx1+(def_rey1)*def_repy1)/def_rept1 * (muonjet1.z() + (t1*muonjet1.z()))/def_rept1;
+
+		std::cout << "new1 xyz: " << newX1 << "," << newY1 << "," << newZ1 << std::endl;
+		std::cout << "old1 xyz: " << oldX1 << "," << oldY1 << "," << oldZ1 << std::endl;
+
+		std::cout << "Recalc new xyz default: " <<  def_re_dzmj1 << std::endl;
+		std::cout << "Recalc old xyz default: " <<  def2_re_dzmj1 << std::endl;
+		std::cout << "Recalc new xyz repz1: " <<  def3_re_dzmj1 << std::endl;
+		std::cout << "Recalc new xyz repz11: " <<  def4_re_dzmj1 << std::endl;
+
+
+		// for(int m=0;m<mj1muons;m++){
+		//   std::cout << "(*muJets)[0].muon(" << m << ")->p4(): " << (*muJets)[0].muon(m)->p4() << std::endl;
+		//   std::cout << "(*muJets)[0].muon(" << m << ")->pt(): " << (*muJets)[0].muon(m)->pt() << std::endl;
+		//   std::cout << "(*muJets)[0].muon(" << m << ")->eta(): " << (*muJets)[0].muon(m)->eta() << std::endl;
+		//   std::cout << "(*muJets)[0].muon(" << m << ")->phi(): " << (*muJets)[0].muon(m)->phi() << std::endl;
+		//   // std::cout << "(*muJets)[0].muon(" << m << ")->pt(byhand) : " << sqrt(((*muJets)[0].muon(m)->p4().x()*(*muJets)[0].muon(m)->p4().x())+((*muJets)[0].muon(m)->p4().y()*(*muJets)[0].muon(m)->p4().y())) << std::endl;
+		// }
+
+
+		std::cout << "new muonjet 1 phi from repx: " << acos(repx1/rept1) << std::endl;
+		std::cout << "new muonjet 2 phi from repx: " << acos(repx2/rept2) << std::endl;
+
+		std::cout << "new muonjet 1 phi from repy: " << asin(repy1/rept1) << std::endl;
+		std::cout << "new muonjet 2 phi from repy: " << asin(repy2/rept2) << std::endl;
+
+		std::cout << "new muonjet 1 eta from repz: " << asinh(repz1/rept1) << std::endl;
+		std::cout << "new muonjet 2 eta from repz: " << asinh(repz2/rept2) << std::endl;
+
+		std::cout << "new_r1: " << new_r1 << ", rept1: " << rept1 << std::endl;
+		std::cout << "new_r2: " << new_r2 << ", rept2: " << rept2 << std::endl;
+
+
+		std::cout << "muonjet1.theta(): " << muonjet1.theta() << ", phi: " << muonjet1.phi() << ", eta: " << muonjet1.eta() << std::endl;
+		std::cout << "muonjet2.theta(): " << muonjet2.theta() << ", phi: " << muonjet2.phi() << ", eta: " << muonjet2.eta() << std::endl;
+
+		std::cout << "genMuonGroups[0][0]->theta(): " << genMuonGroups[0][0]->theta() << ", phi: " << genMuonGroups[0][0]->phi() << ", eta: " << genMuonGroups[0][0]->eta() << std::endl;
+		std::cout << "genMuonGroups[0][1]->theta(): " << genMuonGroups[0][1]->theta() << ", phi: " << genMuonGroups[0][1]->phi() << ", eta: " << genMuonGroups[0][1]->eta() << std::endl;
+		std::cout << "genMuonGroups[1][0]->theta(): " << genMuonGroups[1][0]->theta() << ", phi: " << genMuonGroups[1][0]->phi() << ", eta: " << genMuonGroups[1][0]->eta() << std::endl;
+		std::cout << "genMuonGroups[1][1]->theta(): " << genMuonGroups[1][1]->theta() << ", phi: " << genMuonGroups[1][1]->phi() << ", eta: " << genMuonGroups[1][1]->eta() << std::endl;
+
+
+
+
+		// std::cout << "genMuonGroups[0][0]->px(): " << genMuonGroups[0][0]->px() << std::endl;
+		// std::cout << "genMuonGroups[0][0]->py(): " << genMuonGroups[0][0]->py() << std::endl;
+		// std::cout << "genMuonGroups[0][0]->pz(): " << genMuonGroups[0][0]->pz() << std::endl;
+		// std::cout << "genMuonGroups[0][1]->px(): " << genMuonGroups[0][1]->px() << std::endl;
+		// std::cout << "genMuonGroups[0][1]->py(): " << genMuonGroups[0][1]->py() << std::endl;
+		// std::cout << "genMuonGroups[0][1]->pz(): " << genMuonGroups[0][1]->pz() << std::endl;
+		// std::cout << "genMuonGroups[1][0]->px(): " << genMuonGroups[1][0]->px() << std::endl;
+		// std::cout << "genMuonGroups[1][0]->py(): " << genMuonGroups[1][0]->py() << std::endl;
+		// std::cout << "genMuonGroups[1][0]->pz(): " << genMuonGroups[1][0]->pz() << std::endl;
+		// std::cout << "genMuonGroups[1][1]->px(): " << genMuonGroups[1][1]->px() << std::endl;
+		// std::cout << "genMuonGroups[1][1]->py(): " << genMuonGroups[1][1]->py() << std::endl;
+		// std::cout << "genMuonGroups[1][1]->pz(): " << genMuonGroups[1][1]->pz() << std::endl;
+
+
+	      }
+
+
+		
+	      if (fabs(re_dzmj1_mod-re_dzmj2_mod) < mod_min_dZ) {
+
+		if (verbose){		
+		  std::cout << std::endl << " new minimum: " << fabs(re_dzmj1_mod-re_dzmj2_mod) << std::endl;
+		  std::cout << "true vertex 1 xyz: " << genMuonGroups[0][0]->vertex().x() << "," << genMuonGroups[0][0]->vertex().y() << "," << genMuonGroups[0][0]->vertex().z() << std::endl;
+		  std::cout << "true vertex 2 xyz: " << genMuonGroups[1][0]->vertex().x() << "," << genMuonGroups[1][0]->vertex().y() << "," << genMuonGroups[1][0]->vertex().z() << std::endl;
+		  
+		  
+		  std::cout << "new1 xyz: " << newX1 << "," << newY1 << "," << newZ1 << std::endl;
+		  std::cout << "new2 xyz: " << newX2 << "," << newY2 << "," << newZ2 << std::endl;
+		  std::cout << "new1 z, old xy: " << oldX1 << "," << oldY1 << "," << newZ1 << std::endl;
+		  std::cout << "new2 z, old xy: " << oldX2 << "," << oldY2 << "," << newZ2 << std::endl;
+		  
+		  std::cout << "pt: " << sqrt(((*muJets)[0].muon(0)->px()*(*muJets)[0].muon(0)->px())+((*muJets)[0].muon(0)->py()*(*muJets)[0].muon(0)->py())) << std::endl;
+		  // double term1 = ((*muJets)[0].muon(0)->px()+(newX1-oldX1))*((*muJets)[0].muon(0)->px()+(newX1-oldX1));
+		  // double term2 = ((*muJets)[0].muon(0)->py()+(newY1-oldY1))*((*muJets)[0].muon(0)->py()+(newY1-oldY1));
+
+		  double term1 = ((*muJets)[0].muon(0)->px()+fabs(newX1-oldX1))*((*muJets)[0].muon(0)->px()+fabs(newX1-oldX1));
+		  double term2 = ((*muJets)[0].muon(0)->py()+fabs(newY1-oldY1))*((*muJets)[0].muon(0)->py()+fabs(newY1-oldY1));
+
+		  // double term1 = ((*muJets)[0].muon(0)->px()+(oldX1-newX1))*((*muJets)[0].muon(0)->px()+(oldX1-newX1));
+		  // double term2 = ((*muJets)[0].muon(0)->py()+(oldY1-newY1))*((*muJets)[0].muon(0)->py()+(oldY1-newY1));
+
+		  std::cout << "pt new: " << sqrt(term1 + term2) << std::endl;
+		
+
+
+		std::cout << "newX1: " << newX1 << ", old X1: " << oldX1 << ", diff: " << newX1-oldX1 << std::endl;
+		std::cout << "newY1: " << newY1 << ", old Y1: " << oldY1 << ", diff: " << newY1-oldY1 << std::endl;
+		std::cout << "newZ1: " << newZ1 << ", old Z1: " << oldZ1 << ", diff: " << newZ1-oldZ1 << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().x(): " << (*muJets)[0].muon(0)->p4().x() << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().y(): " << (*muJets)[0].muon(0)->p4().y() << std::endl;
+		std::cout << "(*muJets)[0].muon(0)->p4().z(): " << (*muJets)[0].muon(0)->p4().z() << std::endl;
+
+		std::cout << "newX2: " << newX2 << ", old X2: " << oldX2 << ", diff: " << newX2-oldX2 << std::endl;
+		std::cout << "newY2: " << newY2 << ", old Y2: " << oldY2 << ", diff: " << newY2-oldY2 << std::endl;
+		std::cout << "newZ2: " << newZ2 << ", old Z2: " << oldZ2 << ", diff: " << newZ2-oldZ2 << std::endl;
+		std::cout << "(*muJets)[1].muon(0)->p4().x(): " << (*muJets)[1].muon(0)->p4().x() << std::endl;
+		std::cout << "(*muJets)[1].muon(0)->p4().y(): " << (*muJets)[1].muon(0)->p4().y() << std::endl;
+		std::cout << "(*muJets)[1].muon(0)->p4().z(): " << (*muJets)[1].muon(0)->p4().z() << std::endl;
+
+		std::cout << "tmp_11x = (*muJets)[0].muon(0)->p4().x()+(newX1-oldX1) : " << tmp_11x << std::endl;
+		std::cout << "tmp_11y = (*muJets)[0].muon(0)->p4().y()+(newY1-oldY1) : " << tmp_11y << std::endl;
+		std::cout << "tmp_11z = (*muJets)[0].muon(0)->p4().z()+(newZ1-oldZ1) : " << tmp_11z << std::endl;
+		std::cout << "tmp_12x = (*muJets)[0].muon(1)->p4().x()+(newX1-oldX1) : " << tmp_12x << std::endl;
+		std::cout << "tmp_12y = (*muJets)[0].muon(1)->p4().y()+(newY1-oldY1) : " << tmp_12y << std::endl;
+		std::cout << "tmp_12z = (*muJets)[0].muon(1)->p4().z()+(newZ1-oldZ1) : " << tmp_12z << std::endl;
+		std::cout << "tmp_21x = (*muJets)[1].muon(0)->p4().x()+(newX2-oldX2) : " << tmp_21x << std::endl;
+		std::cout << "tmp_21y = (*muJets)[1].muon(0)->p4().y()+(newY2-oldY2) : " << tmp_21y << std::endl;
+		std::cout << "tmp_21z = (*muJets)[1].muon(0)->p4().z()+(newZ2-oldZ2) : " << tmp_21z << std::endl;
+		std::cout << "tmp_22x = (*muJets)[1].muon(1)->p4().x()+(newX2-oldX2) : " << tmp_22x << std::endl;
+		std::cout << "tmp_22y = (*muJets)[1].muon(1)->p4().y()+(newY2-oldY2) : " << tmp_22y << std::endl;
+		std::cout << "tmp_22z = (*muJets)[1].muon(1)->p4().z()+(newZ2-oldZ2) : " << tmp_22z << std::endl;
+		}
+
+		// std::cout << "pt new: " << sqrt((((*muJets)[0].muon(0)->px()+(newX1-oldX1))*((*muJets)[0].muon(0)->px())+(newX1-oldX1))+(((*muJets)[0].muon(0)->py()+(newY1-oldY1))*((*muJets)[0].muon(0)->py()+(newY1-oldY1)))) << std::endl;
+
+
+		// if (fabs(newMuonJet1.M()-newMuonJet2.M()) < (0.13 + 0.065*(newMuonJet1.M()+newMuonJet2.M())/2.0)){
+
+		// std::cout << "mass checker: " << (fabs(newMuonJet1.M()-newMuonJet2.M())) << " < " << (0.13 + 0.065*(newMuonJet1.M()+newMuonJet2.M())/2.0) << std::endl;
+		// std::cout << "newMuonJet1.M(): " << newMuonJet1.M() << std::endl;
+		// std::cout << "newMuonJet2.M(): " << newMuonJet2.M() << std::endl;
+
+		  mod_min_dZ = fabs(re_dzmj1_mod-re_dzmj2_mod);
+		  mod_min_dz_X1 = newX1;
+		  mod_min_dz_Y1 = newY1;
+		  mod_min_dz_Z1 = newZ1;
+		  mod_min_dz_X2 = newX2;
+		  mod_min_dz_Y2 = newY2;
+		  mod_min_dz_Z2 = newZ2;
+		
+
+		if (fabs(newMuonJet1.M()-newMuonJet2.M()) < min_mass){
+		  min_mass = fabs(newMuonJet1.M()-newMuonJet2.M());
+		  mod_min_mass1 = newMuonJet1.M();
+		  mod_min_mass2 = newMuonJet2.M();
+		}
+
+
+		if (fabs(re_dzmj1_mod-re_dzmj2_mod) < 0.1) {
+		  // std::cout << fabs(re_dzmj1_mod-re_dzmj2_mod) << std::endl;
+		  dzmj1 = re_dzmj1_mod;
+		  dzmj2 = re_dzmj2_mod;
+		}
+		
+
+		massmj1 = mod_min_mass1;
+		massmj2 = mod_min_mass2;
+
+		// std::cout << "filling massmj1: " << massmj1 << std::endl;
+		// std::cout << "filling massmj2: " << massmj2 << std::endl;
+		
+
+		//		}
+	      }
+
+
+	      if (fabs(re_dzmj1-re_dzmj2) < min_dZ) min_dZ = fabs(re_dzmj1-re_dzmj2);
+	      if (fabs(old_re_dzmj1-old_re_dzmj2) < old_min_dZ){
+		old_min_dZ = fabs(old_re_dzmj1-old_re_dzmj2);
+		if (verbose){
+		  std::cout << "min old_re_dzmj1: " << old_re_dzmj1 << std::endl;
+		  std::cout << "min old_re_dzmj2: " << old_re_dzmj2 << std::endl;
+		  std::cout << "fabs(old_re_dzmj1-old_re_dzmj2): " << fabs(old_re_dzmj1-old_re_dzmj2) << std::endl;
+		  std::cout << "rez1: " << rez1 << std::endl;
+		  std::cout << "rez2: " << rez2 << std::endl;
+		}
+	      }
+
+
+	      if ((((gez1-rez1)*(gez1-rez1))+((gex1-rex1)*(gex1-rex1))+((gey1-rey1)*(gey1-rey1))) < minLeastSqTot1){
+		minLeastSqTot1 = (((gez1-rez1)*(gez1-rez1))+((gex1-rex1)*(gex1-rex1))+((gey1-rey1)*(gey1-rey1)));
+		minLeastSqX1 = rex1;
+		minLeastSqY1 = rey1;
+		minLeastSqZ1 = rez1;
+		minLeastSqdZ1 = re_dzmj1;
+		minLeastSqI1 = i;
+	      }
+
+
+	      if ((((gez2-rez2)*(gez2-rez2))+((gex2-rex2)*(gex2-rex2))+((gey2-rey2)*(gey2-rey2))) < minLeastSqTot2){
+		minLeastSqTot2 = (((gez2-rez2)*(gez2-rez2))+((gex2-rex2)*(gex2-rex2))+((gey2-rey2)*(gey2-rey2)));
+		minLeastSqX2 = rex2;
+		minLeastSqY2 = rey2;
+		minLeastSqZ2 = rez2;
+		minLeastSqJ2 = j;
+	      }
+
+	      if (verbose){
+		std::cout << "Reco vertex 1: " << re_dzmj1 << std::endl;
+		std::cout << "Reco vertex 2: " << re_dzmj2 << std::endl;
+		std::cout << "Old XY reco vertex 1: " << old_re_dzmj1 << std::endl;
+		std::cout << "Old XY reco vertex 2: " << old_re_dzmj2 << std::endl;
+		std::cout << "Nominal reco vertex 1: " << dzmj1 << std::endl;
+		std::cout << "Nominal reco vertex 2: " << dzmj2 << std::endl;
+		std::cout << "(fabs(re_dzmj1-re_dzmj2): " << fabs(re_dzmj1-re_dzmj2) << std::endl;
+		std::cout << "(fabs(old_re_dzmj1-old_re_dzmj2): " << fabs(old_re_dzmj1-old_re_dzmj2) << std::endl;
+	      }
+
+
+	      double reptz1 =  pow(old_repx1*old_repx1 + old_repy1*old_repy1 + repz1*repz1, 0.5);
+	      double reptz2 =  pow(old_repx2*old_repx2 + old_repy2*old_repy2 + repz2*repz2, 0.5);
+	      double old_reptz1 =  pow(old_repx1*old_repx1 + old_repy1*old_repy1 + old_repz1*old_repz1, 0.5);
+	      double old_reptz2 =  pow(old_repx2*old_repx2 + old_repy2*old_repy2 + old_repz2*old_repz2, 0.5);
+
+	      XYZTLorentzVector re_1p4Sum;
+	      re_1p4Sum = XYZTLorentzVector(old_repx1, old_repy1, repz1, old_reptz1);
+	      XYZTLorentzVector re_2p4Sum;
+	      re_2p4Sum = XYZTLorentzVector(old_repx2, old_repy2, repz2, old_reptz2);
+
+	      XYZTLorentzVector ge_1p4Sum;
+	      ge_1p4Sum += XYZTLorentzVector(gepx1, gepy1, gepz1, genMuonGroups[0][0]->p4().e() + genMuonGroups[0][1]->p4().e());
+	      XYZTLorentzVector ge_2p4Sum;
+	      ge_2p4Sum += XYZTLorentzVector(gepx2, gepy2, gepz2, genMuonGroups[1][0]->p4().e() + genMuonGroups[1][1]->p4().e());
+
+
+
+	      
+	      // std::cout << "fabs(re_dzmj1-re_dzmj2): " << fabs(re_dzmj1-re_dzmj2) << std::endl;
+	      // if ((fabs(re_dzmj1-re_dzmj2) < 0.1) && !recoMatched){
+
+	      //DON'T TAKE FIRST THAT PASSES - TAKE OPTIMAL
+	      // if ((fabs(old_re_dzmj1-old_re_dzmj2) < 0.1) && !recoMatched){
+	      if ((fabs(re_dzmj1_mod-re_dzmj2_mod) < 0.1) && !recoMatched){
+
+		reco_match_dzmj1 = re_dzmj1;
+		reco_match_dzmj2 = re_dzmj2;
+
+		if (verbose){
+		std::cout << std::endl;
+
+		std::cout << "gepx1 : " << gepx1 << ", repx1: " << repx1 << std::endl;
+		std::cout << "gepy1 : " << gepy1 << ", repy1: " << repy1 << std::endl;
+		std::cout << "gepz1 : " << gepz1 << ", repz1: " << repz1 << std::endl;
+		std::cout << "gepxe1 : " << genMuonGroups[0][0]->p4().e() + genMuonGroups[0][1]->p4().e() << ", rept1: " << reptz1 << std::endl;
+		std::cout << std::endl;
+
+		std::cout << "gen1 by hand: " << sqrt(((genMuonGroups[0][0]->p4().e() + genMuonGroups[0][1]->p4().e())*(genMuonGroups[0][0]->p4().e() + genMuonGroups[0][1]->p4().e())) - (gepx1*gepx1) - (gepy1*gepy1) - (gepz1*gepz1)) << std::endl;
+
+		std::cout << "gen2 by hand: " << sqrt(((genMuonGroups[1][0]->p4().e() + genMuonGroups[1][1]->p4().e())*(genMuonGroups[1][0]->p4().e() + genMuonGroups[1][1]->p4().e())) - (gepx2*gepx2) - (gepy2*gepy2) - (gepz2*gepz2)) << std::endl;
+
+
+		std::cout << "gen1t by hand: " << sqrt(((genMuonGroups[0][0]->p4().t() + genMuonGroups[0][1]->p4().t())*(genMuonGroups[0][0]->p4().t() + genMuonGroups[0][1]->p4().t())) - (gepx1*gepx1) - (gepy1*gepy1) - (gepz1*gepz1)) << std::endl;
+
+		std::cout << "gen2t by hand: " << sqrt(((genMuonGroups[1][0]->p4().t() + genMuonGroups[1][1]->p4().t())*(genMuonGroups[1][0]->p4().t() + genMuonGroups[1][1]->p4().t())) - (gepx2*gepx2) - (gepy2*gepy2) - (gepz2*gepz2)) << std::endl;
+
+
+		std::cout << "matched 1 mass: " << re_1p4Sum.mass() << std::endl;
+		std::cout << "matched 2 mass: " << re_2p4Sum.mass() << std::endl;
+		std::cout << "gen 1 mass: " << ge_1p4Sum.mass() << std::endl;
+		std::cout << "gen 2 mass: " << ge_2p4Sum.mass() << std::endl;
+		}
+
+
+		double tmp_massmj1 = re_1p4Sum.mass();
+		double tmp_massmj2 = re_2p4Sum.mass();
+
+		// if (fabs(massmj1-massmj2) < min_mass){
+		//   min_mass = fabs(massmj1-massmj2);
+		//   min_mass1 = tmp_massmj1;
+		//   min_mass2 = tmp_massmj2;
+		//   // if ((fabs(massmj1-massmj2) < (0.13 + 0.065*(massmj1+massmj2)/2.0)) < min_mass){
+		//   //   std::cout << "massmj1 : " << massmj1 << std::endl;
+		//   //   std::cout << "massmj2 : " << massmj2 << std::endl;
+		//   //   std::cout << " (fabs(massmj1-massmj2)
+
+		//   // min_mass = (fabs(massmj1-massmj2) < (0.13 + 0.065*(massmj1+massmj2)/2.0));
+		// }
+
+
+		// dzmj1 = re_dzmj1;
+		// dzmj2 = re_dzmj2;
+
+
+		// dzmj1 = old_re_dzmj1;
+		// dzmj2 = old_re_dzmj2;
+
+
+		if (verbose){
+		  std::cout << "rez1: " << rez1 << ", rex1: " << rex1 << ", rey1: " << rey1 << ", chi2: " << (*muJets)[0].vertexChi2() << std::endl;
+		  std::cout << "rez2: " << rez2 << ", rex2: " << rex2 << ", rey2: " << rey2 << ", chi2: " << (*muJets)[1].vertexChi2() << std::endl;
+		}
+		//recoMatched = true;
+	      }
+
+
+	    }	 
+	  }
+
+	  
+
+       if (summary){
+		
+	  std::cout << "min_mass: " << min_mass << std::endl;
+	  std::cout << "mod_min_mass1: " << mod_min_mass1 << std::endl;
+	  std::cout << "mod_min_mass2: " << mod_min_mass2 << std::endl;
+	  std::cout << "min_dZ: " << min_dZ << std::endl;
+	  std::cout << "old_min_dZ: " << old_min_dZ << std::endl;
+	  std::cout << "mod_min_dZ: " << mod_min_dZ << std::endl;
+
+       	  std::cout << "dzmj1: " << dzmj1  << std::endl;
+	  std::cout << "dzmj2: " << dzmj2  << std::endl;
+
+	  std::cout << "mod_min_dz_X1: " << mod_min_dz_X1 << std::endl;
+	  std::cout << "mod_min_dz_Y1: " << mod_min_dz_Y1 << std::endl;
+	  std::cout << "mod_min_dz_Z1: " << mod_min_dz_Z1 << std::endl;
+	  std::cout << "mod_min_dz_X2: " << mod_min_dz_X2 << std::endl;
+	  std::cout << "mod_min_dz_Y2: " << mod_min_dz_Y2 << std::endl;
+	  std::cout << "mod_min_dz_Z2: " << mod_min_dz_Z2 << std::endl;
+
+	  std::cout << "mod_min_mass1: " << mod_min_mass1 << std::endl;
+	  std::cout << "mod_min_mass2: " << mod_min_mass2 << std::endl;
+       }
+
+
+       if (verbose){
+	 if (fabs(dzmj1-dzmj2) > 0.1 && min_dZ < 100){
+	   std::cout << "event: " << event << std::endl;	 
+	   std::cout << "dzmj1: " << dzmj1  << std::endl;
+	   std::cout << "dzmj2: " << dzmj2  << std::endl;
+	   std::cout << "fabs(dzmj1-dzmj2): " << fabs(dzmj1-dzmj2) << std::endl;
+	 }
+       }
+	
+       if (verbose){
+		  
+	  std::cout << "minLeastSqX1: " << minLeastSqX1 << std::endl;
+	  std::cout << "minLeastSqY1: " << minLeastSqY1 << std::endl;
+	  std::cout << "minLeastSqZ1: " << minLeastSqZ1 << std::endl;
+	  std::cout << "minLeastSqI1: " << minLeastSqI1 << std::endl;
+	  std::cout << "minLeastSqdZ1: " << minLeastSqdZ1 << std::endl;
+	  std::cout << "minLeastSqTot1: " << minLeastSqTot1 << std::endl;
+
+
+	  std::cout << "minLeastSqX2: " << minLeastSqX2 << std::endl;
+	  std::cout << "minLeastSqY2: " << minLeastSqY2 << std::endl;
+	  std::cout << "minLeastSqZ2: " << minLeastSqZ2 << std::endl;
+	  std::cout << "minLeastSqJ2: " << minLeastSqJ2 << std::endl;
+       }
+
+
+
+
+       // if (vertex) {
+       // 	 muon1 = vertexMomentum(largerset[*largerset_index]);
+       // 	 muon2 = vertexMomentum(smallerset[smallerset_index]);
+       // }
+       // else {
+       // 	 reco::Candidate::Vector v1 = daughter(largerset[*largerset_index])->momentum();
+       // 	 reco::Candidate::Vector v2 = daughter(smallerset[smallerset_index])->momentum();
+       // 	 muon1 = GlobalVector(v1.x(), v1.y(), v1.z());
+       // 	 muon2 = GlobalVector(v2.x(), v2.y(), v2.z());
+       // }
+       // double muon_mass = daughter(largerset[*largerset_index])->mass();  // get the muon mass from CMSSW                                                                                                
+
+       // double total_energy = sqrt(muon1.mag2() + pow(muon_mass, 2)) + sqrt(muon2.mag2() + pow(muon_mass, 2));
+       // double total_px = muon1.x() + muon2.x();
+       // double total_py = muon1.y() + muon2.y();
+       // double total_pz = muon1.z() + muon2.z();
+       // double mass = sqrt(pow(total_energy, 2) - pow(total_px, 2) - pow(total_py, 2) - pow(total_pz, 2));
+
+
+       // if (min_mass < 100){
+       // 	 massmj1 = min_mass1;
+       // 	 massmj2 = min_mass2;
+       // }
+
+       // std::cout << "min_mass: " << min_mass << std::endl;
+       // std::cout << "min_mass1: " << min_mass1 << std::endl;
+       // std::cout << "min_mass2: " << min_mass2 << std::endl;
+
+       // if ((fabs(min_mass1-min_mass2) < (0.13 + 0.065*(min_mass1+min_mass2)/2.0))){
+
+       // 	 std::cout << "fabs(min_mass1-min_mass2): " << fabs(min_mass1-min_mass2) << " < " << (0.13 + 0.065*(min_mass1+min_mass2)/2.0) << std::endl;
+       // }
+       // else std::cout << "fabs(min_mass1-min_mass2): " << fabs(min_mass1-min_mass2) << " > " << (0.13 + 0.065*(min_mass1+min_mass2)/2.0) << std::endl;
+
+	  // for(int m=0;m<mj1muons;m++){
+	  // 	 std::cout << "(*muJets)[0].muon(" << m << ")->px(): " << (*muJets)[0].muon(m)->px() << std::endl;
+	  // 	 std::cout << "(*muJets)[0].muon(" << m << ")->py(): " << (*muJets)[0].muon(m)->py() << std::endl;
+	  // 	 std::cout << "(*muJets)[0].muon(" << m << ")->pz(): " << (*muJets)[0].muon(m)->pz() << std::endl;
+	  // 	 std::cout << "(*muJets)[0].muon(" << m << ")->pt(): " << (*muJets)[0].muon(m)->pt() << std::endl;
+	  // }
+	  // for(int m=0;m<mj2muons;m++){
+	  // 	 std::cout << "(*muJets)[1].muon(" << m << ")->px(): " << (*muJets)[1].muon(m)->px() << std::endl;
+	  // 	 std::cout << "(*muJets)[1].muon(" << m << ")->py(): " << (*muJets)[1].muon(m)->py() << std::endl;
+	  // 	 std::cout << "(*muJets)[1].muon(" << m << ")->pz(): " << (*muJets)[1].muon(m)->pz() << std::endl;
+	  // 	 std::cout << "(*muJets)[1].muon(" << m << ")->pt(): " << (*muJets)[1].muon(m)->pt() << std::endl;
+	  // }
+
+
+
+
+
+
+	  //        while (!recoMatched){
+	  //        for (int i = -10; i < 10; i++){
+	  // 	 double rex1 = 0;
+	  // 	 if ((*muJets)[0].vertexPoint().x()<0) rex1 = ((*muJets)[0].vertexPoint().x()-((circle1Size/10)*i))-beamSpot->position().x();       
+	  // 	 if ((*muJets)[0].vertexPoint().x()>0) rex1 = ((*muJets)[0].vertexPoint().x()+((circle1Size/10)*i))-beamSpot->position().x();       
+	  // 	 double repx1 = (*muJets)[0].p4().x();
+
+	  // 	 for (int j = -10; j < 10; j++){
+	  // 	   double rey1 = 0;
+	  // 	   if ((*muJets)[0].vertexPoint().y()<0) rey1 = ((*muJets)[0].vertexPoint().y()-((circle1Size/10)*j))-beamSpot->position().y();       
+	  // 	   if ((*muJets)[0].vertexPoint().y()>0) rey1 = ((*muJets)[0].vertexPoint().y()+((circle1Size/10)*j))-beamSpot->position().y();       
+	  // 	   double repy1 = (*muJets)[0].p4().y();
+
+	  // 	   for (int k = -10; k < 10; k++){
+	  // 	     double rez1 = 0;
+	  // 	     if ((*muJets)[0].vertexPoint().z()<0) rez1 = ((*muJets)[0].vertexPoint().z()-((circle1Size/10)*k))-beamSpot->position().z();       
+	  // 	     if ((*muJets)[0].vertexPoint().z()>0) rez1 = ((*muJets)[0].vertexPoint().z()+((circle1Size/10)*k))-beamSpot->position().z();       
+	  // 	     double repz1 = (*muJets)[0].p4().z();
+	     
+	     
+	  // 	     for (int ii = -10; ii < 10; ii++){
+	  // 	       double rex2 = 0;
+	  // 	       if ((*muJets)[1].vertexPoint().x()<0) rex2 = ((*muJets)[1].vertexPoint().x()-((circle2Size/10)*ii))-beamSpot->position().x();
+	  // 	       if ((*muJets)[1].vertexPoint().x()>0) rex2 = ((*muJets)[1].vertexPoint().x()+((circle2Size/10)*ii))-beamSpot->position().x();
+	  // 	       double repx2 = (*muJets)[1].p4().x();
+	       
+	  // 	       for (int jj = -10; jj < 10; jj++){
+	  // 		 double rey2 = 0;
+	  // 		 if ((*muJets)[1].vertexPoint().y()<0) rey2 = ((*muJets)[1].vertexPoint().y()-((circle2Size/10)*jj))-beamSpot->position().y(); 
+	  // 		 if ((*muJets)[1].vertexPoint().y()>0) rey2 = ((*muJets)[1].vertexPoint().y()+((circle2Size/10)*jj))-beamSpot->position().y(); 
+	  // 		 double repy2 = (*muJets)[1].p4().y();
+		 
+	  // 		 for (int kk = -10; kk < 10; kk++){
+	  // 		   double rez2 = 0;
+	  // 		   if ((*muJets)[1].vertexPoint().z()<0) rez2 = ((*muJets)[1].vertexPoint().z()-((circle2Size/10)*kk))-beamSpot->position().z();
+	  // 		   if ((*muJets)[1].vertexPoint().z()>0) rez2 = ((*muJets)[1].vertexPoint().z()+((circle2Size/10)*kk))-beamSpot->position().z();
+	  // 		   double repz2 = (*muJets)[1].p4().z();
+
+	  // 		   double rept1 =  pow(repx1*repx1 + repy1*repy1,0.5);
+	  // 		   double re_dzmj1 = (rez1) - ((rex1)*repx1+(rey1)*repy1)/rept1 * repz1/rept1;
+
+	  // 		   double rept2 =  pow(repx2*repx2 + repy2*repy2,0.5);
+	  // 		   double re_dzmj2 = (rez2) - ((rex2)*repx2+(rey2)*repy2)/rept2 * repz2/rept2;
+
+	  // // 		   std::cout << "fabs(re_dzmj1-re_dzmj2): " << fabs(re_dzmj1-re_dzmj2) << std::endl;
+	  // 		   if ((fabs(re_dzmj1-re_dzmj2) < 0.1) && !recoMatched){
+
+	  // 		     reco_match_dzmj1 = re_dzmj1;
+	  // 		     reco_match_dzmj2 = re_dzmj2;
+	  // 		     std::cout << "rez1: " << rez1 << ", rex1: " << rex1 << ", rey1: " << rey1 << ", chi2: " << (*muJets)[0].vertexChi2() << std::endl;
+	  // 		     std::cout << "rez2: " << rez2 << ", rex2: " << rex2 << ", rey2: " << rey2 << ", chi2: " << (*muJets)[1].vertexChi2() << std::endl;
+	  // 		     recoMatched = true;
+
+
+	  // 		   }
+	  // 		 }
+	  // 	       }
+	  // 	     }
+	  // 	   }
+	  // 	 }
+	  //        }
+	  //        }
+       
+
+
+
+
+	  // 	   std::cout << "Altered (*muJets)[0].vertexPoint().z(), k: " << k << ", (circle1Size/20)*k: " << (circle1Size/20)*k << ". z(): "  << rez1 << std::endl;
+       
+       
+	  //        double gex = genMuonGroups[q][0]->vertex().x()-beamSpot->position().x();
+	  //        double gey = genMuonGroups[q][0]->vertex().y()-beamSpot->position().y();
+	  //        double gepy = genMuonGroups[q][0]->p4().y() + genMuonGroups[q][1]->p4().y();
+	  //        double gepz = genMuonGroups[q][0]->p4().z() + genMuonGroups[q][1]->p4().z();
+       
+	  //        XYZTLorentzVector p4Sum;
+	  //        p4Sum += XYZTLorentzVector(gepx, gepy, gepz, genMuonGroups[q][0]->p4().e() + genMuonGroups[q][1]->p4().e());
+	  //        gen_match_massmj2= p4Sum.mass();
+       
+	}
+	else std::cout << "muJet vertex not valid" << std::endl;
+      }
+    }
+  }
+	 
+
+
+
+
+
+
+  //    std::cout << "fittedVertex.position().x(): " << fittedVertex.position().x() <<std::endl;
+  //    std::cout << "fittedVertex.position().y(): " << fittedVertex.position().y() <<std::endl;
+  //    std::cout << "fittedVertex.position().z(): " << fittedVertex.position().z() <<std::endl;
+
+  //    std::cout << "fittedVertex.error().cxx(): " << fittedVertex.error().cxx() <<std::endl;
+  //    std::cout << "fittedVertex.error().cyy(): " << fittedVertex.error().cyy() <<std::endl;
+  //    std::cout << "fittedVertex.error().czz(): " << fittedVertex.error().czz() <<std::endl;
+  //    std::cout << "fittedVertex.error().cyx(): " << fittedVertex.error().cyx() <<std::endl;
+  //    std::cout << "fittedVertex.error().czx(): " << fittedVertex.error().czx() <<std::endl;
+  //    std::cout << "fittedVertex.error().czy(): " << fittedVertex.error().czy() <<std::endl;
+
+
+  //    setVertex(Point(fittedVertex.position().x(), fittedVertex.position().y(), fittedVertex.position().z()));
+
+  //    double covarianceMatrixArray[6] = {fittedVertex.error().cxx(), fittedVertex.error().cyy(), fittedVertex.error().czz(), fittedVertex.error().cyx(), fittedVertex.error().czx(), fittedVertex.error().czy();
+  //    m_covarianceMatrix = CovarianceMatrix(covarianceMatrixArray, 6);
+
+
+  
+
+  //   std::cout<<"  beam spot   "<<std::endl;
+  //    //  std::cout << "Beam spot x: " << beamSpot->position().x() << " y: " << beamSpot->position().y() << " z: " << beamSpot->position().z() << std::endl;
+
+
+
+  
+  edm::Handle<pat::TriggerEvent> triggerEvent;
+  iEvent.getByLabel("patTriggerEvent", triggerEvent);
+  
+  //    std::cout<<"  trigger   "<<std::endl;
+  bool isDiMuonHLTFired = false;
+  if (    ( triggerEvent->path("HLT_Mu17_Mu8_v22") && triggerEvent->path("HLT_Mu17_Mu8_v22")->wasAccept() )
+	  || ( triggerEvent->path("HLT_Mu17_Mu8_v21") && triggerEvent->path("HLT_Mu17_Mu8_v21")->wasAccept() )
+	  || ( triggerEvent->path("HLT_Mu17_Mu8_v19") && triggerEvent->path("HLT_Mu17_Mu8_v19")->wasAccept() )
+	  || ( triggerEvent->path("HLT_Mu17_Mu8_v18") && triggerEvent->path("HLT_Mu17_Mu8_v18")->wasAccept() )
+	  || ( triggerEvent->path("HLT_Mu17_Mu8_v17") && triggerEvent->path("HLT_Mu17_Mu8_v17")->wasAccept() )
+	  || ( triggerEvent->path("HLT_Mu17_Mu8_v16") && triggerEvent->path("HLT_Mu17_Mu8_v16")->wasAccept() ) ) {
+    isDiMuonHLTFired = true;
+  }  
+
+  if(isDiMuonHLTFired) trigger=1;
+  else trigger=0;
+
+
+  edm::Handle<reco::TrackCollection> tracks;
+  iEvent.getByLabel("generalTracks", tracks);
+  
+  if ( muJet1 != NULL && muJet2 != NULL ) {
+
+
+    const pat::MultiMuon *diMuonTmp = NULL;
+    for ( unsigned int i = 1; i <= 2; i++ ) { 
+      double isoTmp = 0.0;
+      if ( i == 1 ) diMuonTmp = muJet1;
+      if ( i == 2 ) diMuonTmp = muJet2;
+      for (reco::TrackCollection::const_iterator track = tracks->begin(); track != tracks->end(); ++track) {
+ 	bool trackIsMuon = false;
+ 	if ( diMuonTmp->sameTrack( &*track, &*(diMuonTmp->muon(0)->innerTrack()) ) || diMuonTmp->sameTrack( &*track, &*(diMuonTmp->muon(1)->innerTrack()) ) ) trackIsMuon = true;
+ 	if (!trackIsMuon) {
+ 	  double dPhi = My_dPhi( diMuonTmp->phi(), track->phi() );
+ 	  double dEta = diMuonTmp->eta() - track->eta();
+ 	  double dR = sqrt( dPhi*dPhi + dEta*dEta ); 
+ 	  if ( dR < 0.4 && track->pt() > 0.5 ) {
+ 	    double dz = fabs( track->dz(beamSpot->position()) - diMuonTmp->dz(beamSpot->position()) );
+ 	    if ( dz < 0.1 ) isoTmp += track->pt();
+ 	  }    
+ 	}
+      }
+      if ( i == 1 ) isomj1 = isoTmp;
+      if ( i == 2 ) isomj2 = isoTmp;
+    }
+  }  
+
+  
+  //    std::cout<<"vertex   "<<std::endl;
+  edm::Handle<reco::VertexCollection> primaryVertices;
+  iEvent.getByLabel("offlinePrimaryVertices", primaryVertices);
+  
+
+  bool isVtxOk=false;
+  for (reco::VertexCollection::const_iterator vertex = primaryVertices->begin();  vertex != primaryVertices->end();  ++vertex) {
+    if (vertex->isValid() && !vertex->isFake() && vertex->tracksSize() > 3 && fabs(vertex->z()) < 24.) isVtxOk=true;
+  }
+
+  if(isVtxOk) isVtx=1;
+  
+  // std::cout << "dumping massmj1: " << massmj1 << std::endl;
+  // std::cout << "dumping massmj2: " << massmj2 << std::endl;
+
+
+  //    std::cout<<" Fill TRee   "<<std::endl;
+  AnaTree->Fill();
+  //   std::cout<<"after  Fill TRee   "<<std::endl;
+
+
+}
+
+
+// ------------ method called once each job just before starting event loop  ------------
+void 
+Analysis::beginJob()
+{
+  std::cout << "BEGIN JOB" << std::endl;
+  
+  edm::Service<TFileService> tFileService;
+  AnaTree = tFileService->make<TTree>("Events", "Events");
+
+
+  // Event variables
+  AnaTree->Branch("event",     &event,     "event/I");
+  AnaTree->Branch("trigger",   &trigger,   "trigger/I");
+  AnaTree->Branch("isVtx",     &isVtx,     "isVtx/I");
+  AnaTree->Branch("genmuons",  &genmuons,  "genmuons/I");
+  AnaTree->Branch("gengamD",   &gengamD,   "gengamD/I");
+  AnaTree->Branch("genHiggs",  &genHiggs,  "genHiggs/I");
+  AnaTree->Branch("recmuons",  &recmuons,  "recmuons/I");
+  AnaTree->Branch("recmujets", &recmujets, "recmujets/I");
+
+  // Generator Muons
+  AnaTree->Branch("ptgengamD0",      &ptgengamD,      "ptgengamD[2]/F");
+  AnaTree->Branch("ptgenHiggs",      &ptgenHiggs,     "ptgenHiggs[0]/F");
+
+  AnaTree->Branch("ptgenMuons",     &ptgenMuons,    "ptgenMuons[genmuons]/F");
+  AnaTree->Branch("etagenMuons",    &etagenMuons,   "etagenMuons[genmuons]/F");
+
+  AnaTree->Branch("ptgenMuonsA0",    &ptgenMuonsA0,   "ptgenMuonsA0[2]/F");
+  AnaTree->Branch("ptgenMuonsA1",    &ptgenMuonsA1,   "ptgenMuonsA1[2]/F");
+  AnaTree->Branch("etagenMuonsA0",   &etagenMuonsA0,  "etagenMuonsA0[2]/F");
+  AnaTree->Branch("etagenMuonsA1",   &etagenMuonsA1,  "etagenMuonsA1[2]/F");
+  
+
+  // Reconstructed Muons
+
+  AnaTree->Branch("ptrecMuons",  &ptrecMuons,    "ptrecMuons[recmuons]/F");
+  AnaTree->Branch("etarecMuons", &etarecMuons,   "etarecMuons[recmuons]/F");
+
+  AnaTree->Branch("mj1muons",    &mj1muons,  "mj1muons/I");
+  AnaTree->Branch("mj2muons",    &mj2muons,  "mj2muons/I");
+
+  AnaTree->Branch("ptmj1muons",  &ptmj1muons, "ptmj1muons[mj1muons]/F");
+  AnaTree->Branch("ptmj2muons",  &ptmj2muons, "ptmj2muons[mj2muons]/F");
+  AnaTree->Branch("etamj1muons", &etamj1muons, "etamj1muons[mj1muons]/F");
+  AnaTree->Branch("etamj2muons", &etamj2muons, "etamj2muons[mj2muons]/F");
+
+  AnaTree->Branch("dzmj1",       &dzmj1,  "dzmj1/F");
+  AnaTree->Branch("dzmj2",       &dzmj2,  "dzmj2/F");
+
+  AnaTree->Branch("massmj1",     &massmj1, "massmj1/F");
+  AnaTree->Branch("massmj2",     &massmj2, "massmj2/F");
+
+  AnaTree->Branch("gen_match_dzmj1",       &gen_match_dzmj1,  "gen_match_dzmj1/F");
+  AnaTree->Branch("gen_match_dzmj2",       &gen_match_dzmj2,  "gen_match_dzmj2/F");
+  AnaTree->Branch("gen_match_massmj1",     &gen_match_massmj1, "gen_match_massmj1/F");
+  AnaTree->Branch("gen_match_massmj2",     &gen_match_massmj2, "gen_match_massmj2/F");
+  AnaTree->Branch("gen_match_chi2mj1",     &gen_match_chi2mj1, "gen_match_chi2mj1/F");
+  AnaTree->Branch("gen_match_chi2mj2",     &gen_match_chi2mj2, "gen_match_chi2mj2/F");
+
+  AnaTree->Branch("gen_mismatch_dzmj1",       &gen_mismatch_dzmj1,  "gen_mismatch_dzmj1/F");
+  AnaTree->Branch("gen_mismatch_dzmj2",       &gen_mismatch_dzmj2,  "gen_mismatch_dzmj2/F");
+  AnaTree->Branch("gen_mismatch_massmj1",     &gen_mismatch_massmj1, "gen_mismatch_massmj1/F");
+  AnaTree->Branch("gen_mismatch_massmj2",     &gen_mismatch_massmj2, "gen_mismatch_massmj2/F");
+  AnaTree->Branch("gen_mismatch_chi2mj1",     &gen_mismatch_chi2mj1, "gen_mismatch_chi2mj1/F");
+  AnaTree->Branch("gen_mismatch_chi2mj2",     &gen_mismatch_chi2mj2, "gen_mismatch_chi2mj2/F");
+
+
+
+  AnaTree->Branch("isomj1",     &isomj1, "isomj1/F");
+  AnaTree->Branch("isomj2",     &isomj2, "isomj2/F");
+
+}
+
+// ------------ method called once each job just after ending the event loop  ------------
+void 
+Analysis::endJob() 
+{
+  
+}
+
+// ------------ method called when starting to processes a run  ------------
+void 
+Analysis::beginRun(edm::Run const & iRun, edm::EventSetup const & iSetup)
+{
+  
+}
+
+// ------------ method called when ending the processing of a run  ------------
+void 
+Analysis::endRun(edm::Run const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when starting to processes a luminosity block  ------------
+void 
+Analysis::beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when ending the processing of a luminosity block  ------------
+void 
+Analysis::endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
+void
+Analysis::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  //The following says we do not know what parameters are allowed so do no validation
+  // Please change this to state exactly what you do use, even if it is no parameters
+  edm::ParameterSetDescription desc;
+  desc.setUnknown();
+  descriptions.addDefault(desc);
+}
+
+//define this as a plug-in
+DEFINE_FWK_MODULE(Analysis);
