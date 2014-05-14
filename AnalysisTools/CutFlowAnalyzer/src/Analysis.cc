@@ -96,6 +96,21 @@ double My_dPhi (double phi1, double phi2) {
   return dPhi;
 }
 
+
+//******************************************************************************
+// Auxiliary function: check if track is associated to dimuon
+//******************************************************************************
+
+bool sameTrack(const reco::Track *one, const reco::Track *two) {
+   return (fabs(one->px() - two->px()) < 1e-10  &&
+	   fabs(one->py() - two->py()) < 1e-10  &&
+	   fabs(one->pz() - two->pz()) < 1e-10  &&
+	   fabs(one->vx() - two->vx()) < 1e-10  &&
+	   fabs(one->vy() - two->vy()) < 1e-10  &&
+	   fabs(one->vz() - two->vz()) < 1e-10);
+}
+
+
 //******************************************************************************
 //                           Class declaration                                  
 //******************************************************************************
@@ -654,6 +669,10 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   double min_dz_n = 10000.;
 
+
+  XYZTLorentzVector diMuonTmp;
+
+
   if ( muJet1 != NULL && muJet2 != NULL ) {     
 
     if (nMuJets == 2) {
@@ -695,7 +714,11 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	Global3DPoint muonjet1v = muJet1->vertexPoint();
 	Global3DPoint muonjet2v = muJet2->vertexPoint();
 
-	int throws = 5000000;
+	int throws = 100000;
+
+	XYZTLorentzVector final_mj1_vtx;
+	XYZTLorentzVector final_mj2_vtx;
+
 
 	for (int dice = 0; dice < throws; dice++) {
 
@@ -763,6 +786,41 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	    dzmj2 =  re_dzmj2;
 	    min_dz_n = fabs(re_dzmj1-re_dzmj2);	    
 
+	    final_mj1_vtx = new_mj1_vtx;
+	    final_mj2_vtx = new_mj2_vtx;
+
+	    if (min_dz_n < 0.1){
+	      for ( unsigned int i = 0; i <= 1; i++ ) { 
+		double isoTmp = 0.0;
+		double n_dz;
+		if ( i == 0 ){
+		  diMuonTmp = final_mj1_vtx;
+		  n_dz = dzmj1;
+		}
+		if ( i == 1 ){
+		  diMuonTmp = final_mj2_vtx;
+		  n_dz = dzmj2;
+		}
+	      
+		for (reco::TrackCollection::const_iterator track = tracks->begin(); track != tracks->end(); ++track) {
+		  bool trackIsMuon = false;
+		  if ( sameTrack( &*track, &*((*muJets)[i].muon(0)->innerTrack()) ) || sameTrack( &*track, &*((*muJets)[i].muon(1)->innerTrack()) ) ) trackIsMuon = true;
+		  if (!trackIsMuon) {
+		    double dPhi = My_dPhi( diMuonTmp.phi(), track->phi() );
+		    double dEta = diMuonTmp.eta() - track->eta();
+		    double dR = sqrt( dPhi*dPhi + dEta*dEta ); 
+		    if ( dR < 0.4 && track->pt() > 0.5 ) {
+		      double dz = fabs( track->dz(beamSpot->position()) - n_dz);
+		      if ( dz < 0.1 ) isoTmp += track->pt();
+		    }    
+		  }
+		}
+		if ( i == 1 ) isomj1 = isoTmp;
+		if ( i == 2 ) isomj2 = isoTmp;
+	      }
+	    }  
+	  
+
 	  }
 	}
 
@@ -770,6 +828,7 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       else std::cout << "muJet vertex not valid" << std::endl;
     }
   }
+
 
   
   edm::Handle<pat::TriggerEvent> triggerEvent;
@@ -791,31 +850,37 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 
   
-  if ( muJet1 != NULL && muJet2 != NULL ) {
+  // if ( muJet1 != NULL && muJet2 != NULL ) {
 
 
-    const pat::MultiMuon *diMuonTmp = NULL;
-    for ( unsigned int i = 1; i <= 2; i++ ) { 
-      double isoTmp = 0.0;
-      if ( i == 1 ) diMuonTmp = muJet1;
-      if ( i == 2 ) diMuonTmp = muJet2;
-      for (reco::TrackCollection::const_iterator track = tracks->begin(); track != tracks->end(); ++track) {
- 	bool trackIsMuon = false;
- 	if ( diMuonTmp->sameTrack( &*track, &*(diMuonTmp->muon(0)->innerTrack()) ) || diMuonTmp->sameTrack( &*track, &*(diMuonTmp->muon(1)->innerTrack()) ) ) trackIsMuon = true;
- 	if (!trackIsMuon) {
- 	  double dPhi = My_dPhi( diMuonTmp->phi(), track->phi() );
- 	  double dEta = diMuonTmp->eta() - track->eta();
- 	  double dR = sqrt( dPhi*dPhi + dEta*dEta ); 
- 	  if ( dR < 0.4 && track->pt() > 0.5 ) {
- 	    double dz = fabs( track->dz(beamSpot->position()) - diMuonTmp->dz(beamSpot->position()) );
- 	    if ( dz < 0.1 ) isoTmp += track->pt();
- 	  }    
- 	}
-      }
-      if ( i == 1 ) isomj1 = isoTmp;
-      if ( i == 2 ) isomj2 = isoTmp;
-    }
-  }  
+  //   // const pat::MultiMuon *diMuonTmp = NULL;
+
+
+  //   for ( unsigned int i = 1; i <= 2; i++ ) { 
+  //     double isoTmp = 0.0;
+  //     if ( i == 1 ) diMuonTmp = final_mj1_vtx;
+  //     if ( i == 2 ) diMuonTmp = final_mj2_vtx;
+
+  //     // if ( i == 1 ) diMuonTmp = muJet1;
+  //     // if ( i == 2 ) diMuonTmp = muJet2;
+
+  //     for (reco::TrackCollection::const_iterator track = tracks->begin(); track != tracks->end(); ++track) {
+  // 	bool trackIsMuon = false;
+  // 	if ( diMuonTmp->sameTrack( &*track, &*(diMuonTmp->muon(0)->innerTrack()) ) || diMuonTmp->sameTrack( &*track, &*(diMuonTmp->muon(1)->innerTrack()) ) ) trackIsMuon = true;
+  // 	if (!trackIsMuon) {
+  // 	  double dPhi = My_dPhi( diMuonTmp->phi(), track->phi() );
+  // 	  double dEta = diMuonTmp->eta() - track->eta();
+  // 	  double dR = sqrt( dPhi*dPhi + dEta*dEta ); 
+  // 	  if ( dR < 0.4 && track->pt() > 0.5 ) {
+  // 	    double dz = fabs( track->dz(beamSpot->position()) - diMuonTmp->dz(beamSpot->position()) );
+  // 	    if ( dz < 0.1 ) isoTmp += track->pt();
+  // 	  }    
+  // 	}
+  //     }
+  //     if ( i == 1 ) isomj1 = isoTmp;
+  //     if ( i == 2 ) isomj2 = isoTmp;
+  //   }
+  // }  
 
   edm::Handle<reco::VertexCollection> primaryVertices;
   iEvent.getByLabel("offlinePrimaryVertices", primaryVertices);
