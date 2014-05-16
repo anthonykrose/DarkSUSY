@@ -789,8 +789,10 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	    final_mj1_vtx = new_mj1_vtx;
 	    final_mj2_vtx = new_mj2_vtx;
 
+
 	    if (min_dz_n < 0.1){
 	      for ( unsigned int i = 0; i <= 1; i++ ) { 
+
 		double isoTmp = 0.0;
 		double n_dz;
 		if ( i == 0 ){
@@ -809,14 +811,17 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 		    double dPhi = My_dPhi( diMuonTmp.phi(), track->phi() );
 		    double dEta = diMuonTmp.eta() - track->eta();
 		    double dR = sqrt( dPhi*dPhi + dEta*dEta ); 
+
 		    if ( dR < 0.4 && track->pt() > 0.5 ) {
 		      double dz = fabs( track->dz(beamSpot->position()) - n_dz);
-		      if ( dz < 0.1 ) isoTmp += track->pt();
+		      if ( dz < 0.1 ){
+			isoTmp += track->pt();
+		      }
 		    }    
 		  }
 		}
-		if ( i == 1 ) isomj1 = isoTmp;
-		if ( i == 2 ) isomj2 = isoTmp;
+		if ( i == 0 ) isomj1 = isoTmp;
+		if ( i == 1 ) isomj2 = isoTmp;
 	      }
 	    }  
 	  
@@ -828,7 +833,6 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       else std::cout << "muJet vertex not valid" << std::endl;
     }
   }
-
 
   
   edm::Handle<pat::TriggerEvent> triggerEvent;
@@ -851,18 +855,12 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   
   // if ( muJet1 != NULL && muJet2 != NULL ) {
-
-
-  //   // const pat::MultiMuon *diMuonTmp = NULL;
-
+  //   const pat::MultiMuon *diMuonTmp = NULL;
 
   //   for ( unsigned int i = 1; i <= 2; i++ ) { 
   //     double isoTmp = 0.0;
-  //     if ( i == 1 ) diMuonTmp = final_mj1_vtx;
-  //     if ( i == 2 ) diMuonTmp = final_mj2_vtx;
-
-  //     // if ( i == 1 ) diMuonTmp = muJet1;
-  //     // if ( i == 2 ) diMuonTmp = muJet2;
+  //     if ( i == 1 ) diMuonTmp = muJet1;
+  //     if ( i == 2 ) diMuonTmp = muJet2;
 
   //     for (reco::TrackCollection::const_iterator track = tracks->begin(); track != tracks->end(); ++track) {
   // 	bool trackIsMuon = false;
@@ -873,7 +871,9 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   // 	  double dR = sqrt( dPhi*dPhi + dEta*dEta ); 
   // 	  if ( dR < 0.4 && track->pt() > 0.5 ) {
   // 	    double dz = fabs( track->dz(beamSpot->position()) - diMuonTmp->dz(beamSpot->position()) );
-  // 	    if ( dz < 0.1 ) isoTmp += track->pt();
+  // 	    if ( dz < 0.1 ){
+  // 	      isoTmp += track->pt();
+  // 	    }
   // 	  }    
   // 	}
   //     }
@@ -881,6 +881,7 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   //     if ( i == 2 ) isomj2 = isoTmp;
   //   }
   // }  
+
 
   edm::Handle<reco::VertexCollection> primaryVertices;
   iEvent.getByLabel("offlinePrimaryVertices", primaryVertices);
