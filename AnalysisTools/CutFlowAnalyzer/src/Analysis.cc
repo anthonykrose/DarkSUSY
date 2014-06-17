@@ -15,7 +15,6 @@
 #include "TRandom3.h"
 #include "TMath.h"
 
-
 #include "DataFormats/Math/interface/LorentzVector.h"
 #include "DataFormats/Common/interface/TriggerResults.h"
 #include "FWCore/Common/interface/TriggerNames.h"
@@ -75,8 +74,6 @@
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
 
-
-
 using namespace math;
 
 
@@ -102,18 +99,148 @@ double My_dPhi (double phi1, double phi2) {
 //******************************************************************************
 
 bool sameTrack(const reco::Track *one, const reco::Track *two) {
-   return (fabs(one->px() - two->px()) < 1e-10  &&
-	   fabs(one->py() - two->py()) < 1e-10  &&
-	   fabs(one->pz() - two->pz()) < 1e-10  &&
-	   fabs(one->vx() - two->vx()) < 1e-10  &&
-	   fabs(one->vy() - two->vy()) < 1e-10  &&
-	   fabs(one->vz() - two->vz()) < 1e-10);
+  return (fabs(one->px() - two->px()) < 1e-10  &&
+	  fabs(one->py() - two->py()) < 1e-10  &&
+	  fabs(one->pz() - two->pz()) < 1e-10  &&
+	  fabs(one->vx() - two->vx()) < 1e-10  &&
+	  fabs(one->vy() - two->vy()) < 1e-10  &&
+	  fabs(one->vz() - two->vz()) < 1e-10);
 }
+
+
+//******************************************************************************
+// Returns Cholesky decomposition of input matrix A
+//******************************************************************************
+
+std::vector<std::vector<double> > cholesky(std::vector<std::vector<double> > A)
+{
+  int an = A.size();
+  double sum1 = 0.0;
+  double sum2 = 0.0;
+  double sum3 = 0.0;
+
+  std::vector<std::vector<double> > l(an, std::vector<double> (an));
+
+  l[0][0] = sqrt(A[0][0]);
+  for (int j = 1; j <= an-1; j++)
+    l[j][0] = A[j][0]/l[0][0];
+  for (int i = 1; i <= (an-2); i++)
+    {
+      for (int k = 0; k <= (i-1); k++)
+	sum1 += pow(l[i][k], 2);
+      l[i][i]= sqrt(A[i][i]-sum1);
+      for (int j = (i+1); j <= (an-1); j++)
+	{
+	  for (int k = 0; k <= (i-1); k++)
+	    sum2 += l[j][k]*l[i][k];
+	  l[j][i]= (A[j][i]-sum2)/l[i][i];
+	}
+    }
+  for (int k = 0; k <= (an-2); k++)
+    sum3 += pow(l[an-1][k], 2);
+  l[an-1][an-1] = sqrt(A[an-1][an-1]-sum3);
+  return l;
+}
+
+//******************************************************************************
+// Struct to hold relevant details from iterative vertex technique
+// (should all be moved out of this file with things are stable)
+//******************************************************************************
+
+struct EventContainer 
+{
+
+  double vtx_dzmj1;
+  double vtx_dzmj2;
+  double vtx_dxymj1;
+  double vtx_dxymj2; 
+  double vtx_massmj1;
+  double vtx_massmj2;
+  XYZTLorentzVector vtx_mj1;
+  XYZTLorentzVector vtx_mj2;
+  Global3DPoint vtx_1;
+  Global3DPoint vtx_2;
+
+  EventContainer(){
+    vtx_dzmj1 = 0.;
+    vtx_dzmj2 = 0.;
+    vtx_dxymj1 = 0.;
+    vtx_dxymj2 = 0.; 
+    vtx_massmj1 = 0.;
+    vtx_massmj2 = 0.;
+    vtx_mj1 = XYZTLorentzVector(0.,0.,0.,0.);
+    vtx_mj2 = XYZTLorentzVector(0.,0.,0.,0.);
+    vtx_1 = Global3DPoint(0., 0., 0.);
+    vtx_2 = Global3DPoint(0., 0., 0.);
+  }
+
+  void set_vtx_1(const Global3DPoint x){
+    vtx_1 = x;
+  }
+  Global3DPoint get_vtx_1(){
+    return vtx_1;
+  }
+  void set_vtx_2(const Global3DPoint x){
+    vtx_2 = x;
+  }
+  Global3DPoint get_vtx_2(){
+    return vtx_2;
+  }
+  void set_vtx_dzmj1(const double x){
+    vtx_dzmj1 = x;
+  }
+  double get_vtx_dzmj1(){
+    return vtx_dzmj1;
+  }
+  void set_vtx_dzmj2(const double x){
+    vtx_dzmj2 = x;
+  }
+  double get_vtx_dzmj2(){
+    return vtx_dzmj2;
+  }
+  void set_vtx_dxymj1(const double x){
+    vtx_dxymj1 = x;
+  }
+  double get_vtx_dxymj1(){
+    return vtx_dxymj1;
+  }
+  void set_vtx_dxymj2(const double x){
+    vtx_dxymj2 = x;
+  }
+  double get_vtx_dxymj2(){
+    return vtx_dxymj2;
+  }
+  void set_vtx_massmj1(const double x){
+    vtx_massmj1 = x;
+  }
+  double get_vtx_massmj1(){
+    return vtx_massmj1;
+  }
+  void set_vtx_massmj2(const double x){
+    vtx_massmj2 = x;
+  }
+  double get_vtx_massmj2(){
+    return vtx_massmj2;
+  }
+  void set_vtx_mj1(XYZTLorentzVector x){
+    vtx_mj1 = x;
+  }
+  XYZTLorentzVector get_vtx_mj1(){
+    return vtx_mj1;
+  }
+  void set_vtx_mj2(XYZTLorentzVector x){
+    vtx_mj2 = x;
+  }
+  XYZTLorentzVector get_vtx_mj2(){
+    return vtx_mj2;
+  }
+};
 
 
 //******************************************************************************
 //                           Class declaration                                  
 //******************************************************************************
+
 
 class Analysis : public edm::EDAnalyzer {
 public:
@@ -167,22 +294,6 @@ private:
   Float_t ptgengamD[5];
   Float_t ptgenHiggs[5];
 
-  Float_t gen_match_dzmj1;
-  Float_t gen_match_dzmj2;
-  Float_t gen_match_massmj1;
-  Float_t gen_match_massmj2;
-
-  Float_t gen_mismatch_dzmj1;
-  Float_t gen_mismatch_dzmj2;
-  Float_t gen_mismatch_massmj1;
-  Float_t gen_mismatch_massmj2;
-
-  Float_t gen_match_chi2mj1;
-  Float_t gen_match_chi2mj2;
-  Float_t gen_mismatch_chi2mj1;
-  Float_t gen_mismatch_chi2mj2;
-
-
   // ---------- RECO Level ----------
   
   Int_t recmuons;
@@ -200,15 +311,17 @@ private:
   Float_t dzmj1;
   Float_t dzmj2;
 
+  Float_t dxymj1;
+  Float_t dxymj2;
+
+  Float_t dphi1;
+  Float_t dphi2;
+
   Float_t massmj1;
   Float_t massmj2;
 
   Float_t isomj1;
   Float_t isomj2;
-
-  Float_t reco_match_dzmj1;
-  Float_t reco_match_dzmj2;
-
 
   // Labels to access
   edm::InputTag m_muons;  // reconstructed muons
@@ -245,29 +358,18 @@ Analysis::Analysis(const edm::ParameterSet& iConfig)
   recmuons=0;
   dzmj1=0.;
   dzmj2=0.;
+
+  dxymj1=0.;
+  dxymj2=0.;
+
   massmj1=0.0;
   massmj2=0.0;
   isomj1=0.0;
   isomj2=0.0;
   isVtx=0;
 
-  gen_match_dzmj1=0.;
-  gen_match_dzmj2=0.;
-  gen_match_massmj1=0.0;
-  gen_match_massmj2=0.0;
-  gen_match_chi2mj1=0.0;
-  gen_match_chi2mj2=0.0;
-  gen_mismatch_dzmj1=0.;
-  gen_mismatch_dzmj2=0.;
-  gen_mismatch_massmj1=0.0;
-  gen_mismatch_massmj2=0.0;
-  gen_mismatch_chi2mj1=0.0;
-  gen_mismatch_chi2mj2=0.0;
-
-  reco_match_dzmj1=0.;
-  reco_match_dzmj2=0.;
-
-
+  dphi1=0.;
+  dphi2=0.;
 
   AnaTree  = NULL;    
   
@@ -278,9 +380,6 @@ Analysis::Analysis(const edm::ParameterSet& iConfig)
   // ---------- RECO Level ----------
   m_muons = iConfig.getParameter<edm::InputTag>("muons");
   m_muJets = iConfig.getParameter<edm::InputTag>("muJets");
-
-
-  //  m_maxIsoDiMuons  = iConfig.getParameter<double>("maxIsoDiMuons");
 
 }
 
@@ -307,9 +406,6 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   run   = iEvent.id().run();
   lumi  = iEvent.id().luminosityBlock();
   event = iEvent.id().event();
-
-  // std::cout << std::endl << "run: " << run << ", lumi: " << lumi << ", event: " << event << std::endl;
-
 
   //****************************************************************************
   //                              GEN LEVEL                                     
@@ -438,8 +534,7 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     etagenMuonsA1[1] = genMuonGroups[1][1]->eta();
   }
 
-
-  
+ 
   //================= Reco =======================//
   
   edm::Handle<pat::MuonCollection> muons;
@@ -462,7 +557,6 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     ptrecMuons[k] = recMuons[k]->pt();
     etarecMuons[k] = recMuons[k]->eta();
   }
-  
 
   //================ MuJets  ======================//
 
@@ -479,126 +573,6 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   edm::Handle<reco::BeamSpot> beamSpot;
   iEvent.getByLabel("offlineBeamSpot",beamSpot);
-
-  const pat::MultiMuon *muJet1_tmp = NULL;
-  const pat::MultiMuon *muJet2_tmp = NULL;
-
-  int matched = 0;
-  if (nMuJets == 2 && genMuonGroups.size() == 2 && genMuonGroups[0].size() == 2 && genMuonGroups[1].size() == 2) {
-    int mj1muons_tmp = (*muJets)[0].numberOfDaughters();
-    int mj2muons_tmp = (*muJets)[1].numberOfDaughters();
-    muJet1_tmp = &((*muJets)[0]);
-    muJet2_tmp = &((*muJets)[1]);     
-
-    if ( muJet1_tmp != NULL && muJet2_tmp != NULL ) {
-	
-      for (unsigned int q = 0; q < genMuonGroups.size(); ++q) { // loop over gen muon jets
-
-	double min_dR1_1 = 1000;
-	double min_dR1_2 = 1000;
-	double min_dR2_1 = 1000;
-	double min_dR2_2 = 1000;
-
-	for(int m=0;m<mj1muons_tmp;m++){ 
-	  double dPhi1_1 = My_dPhi((*muJets)[0].muon(m)->phi(), genMuonGroups[q][0]->phi());
-	  double dEta1_1 = (*muJets)[0].muon(m)->eta() - genMuonGroups[q][0]->eta();
-	  double dPhi1_2 = My_dPhi((*muJets)[0].muon(m)->phi(), genMuonGroups[q][1]->phi());
-	  double dEta1_2 = (*muJets)[0].muon(m)->eta() - genMuonGroups[q][1]->eta();
-	  double dR1_1 = sqrt( dPhi1_1*dPhi1_1 + dEta1_1*dEta1_1 ); 
-
-	  if (dR1_1< min_dR1_1) {
-	    min_dR1_1 = dR1_1;
-	  }
-	  double dR1_2 = sqrt( dPhi1_2*dPhi1_2 + dEta1_2*dEta1_2 ); 
-
-	  if (dR1_2< min_dR1_2){
-	    min_dR1_2 = dR1_2;
-	  }
-
-	}
-	for(int m=0;m<mj2muons_tmp;m++){ 
-
-	  double dPhi2_1 = My_dPhi((*muJets)[1].muon(m)->phi(), genMuonGroups[q][0]->phi());
-	  double dEta2_1 = (*muJets)[1].muon(m)->eta() - genMuonGroups[q][0]->eta();
-	  double dPhi2_2 = My_dPhi((*muJets)[1].muon(m)->phi(), genMuonGroups[q][1]->phi());
-	  double dEta2_2 = (*muJets)[1].muon(m)->eta() - genMuonGroups[q][1]->eta();
-	  double dR2_1 = sqrt( dPhi2_1*dPhi2_1 + dEta2_1*dEta2_1 ); 
-
-	  if (dR2_1< min_dR2_1){
-	    min_dR2_1 = dR2_1;
-	  }
-	  double dR2_2 = sqrt( dPhi2_2*dPhi2_2 + dEta2_2*dEta2_2 ); 
-
-	  if (dR2_2< min_dR2_2){
-	    min_dR2_2 = dR2_2;
-	  }
-	}
-	if (min_dR1_1 < 0.1 && min_dR1_2 < 0.1 ){
-	  matched++;
-
-	  if (muJet1_tmp->vertexValid())  gen_match_chi2mj1= muJet1_tmp->vertexNormalizedChi2();
-
-	  double gez = genMuonGroups[q][0]->vertex().z()-beamSpot->position().z();
-	  double gex = genMuonGroups[q][0]->vertex().x()-beamSpot->position().x();
-	  double gey = genMuonGroups[q][0]->vertex().y()-beamSpot->position().y();
-	  double gepx = genMuonGroups[q][0]->p4().x() + genMuonGroups[q][1]->p4().x();
-	  double gepy = genMuonGroups[q][0]->p4().y() + genMuonGroups[q][1]->p4().y();
-	  double gepz = genMuonGroups[q][0]->p4().z() + genMuonGroups[q][1]->p4().z();
-	  double gept =  pow(gepx*gepx + gepy*gepy,0.5);
-
-	  gen_match_dzmj1 = (gez) - ((gex)*gepx+(gey)*gepy)/gept * gepz/gept;
-
-	  XYZTLorentzVector p4Sum;
-	  p4Sum += XYZTLorentzVector(gepx, gepy, gepz, genMuonGroups[q][0]->p4().e() + genMuonGroups[q][1]->p4().e());
-
-	  gen_match_massmj1= p4Sum.mass();
-
-	  gen_mismatch_massmj1= 0.;
-	  gen_mismatch_chi2mj1= 0.;
-	  gen_mismatch_dzmj1 = 0.;
-	}
-	if (min_dR2_1 < 0.1 && min_dR2_2 < 0.1 ){
-	  matched++;
-
-	  if (muJet2_tmp->vertexValid()) gen_match_chi2mj2= muJet2_tmp->vertexNormalizedChi2();
-	  gen_mismatch_massmj2= 0.;
-	  gen_mismatch_dzmj2 = 0.;
-	  gen_mismatch_chi2mj2 = 0.;
-
-	  double gez = genMuonGroups[q][0]->vertex().z()-beamSpot->position().z();
-	  double gex = genMuonGroups[q][0]->vertex().x()-beamSpot->position().x();
-	  double gey = genMuonGroups[q][0]->vertex().y()-beamSpot->position().y();
-
-	  double gepx = genMuonGroups[q][0]->p4().x() + genMuonGroups[q][1]->p4().x();
-	  double gepy = genMuonGroups[q][0]->p4().y() + genMuonGroups[q][1]->p4().y();
-	  double gepz = genMuonGroups[q][0]->p4().z() + genMuonGroups[q][1]->p4().z();
-	  double gept =  pow(gepx*gepx + gepy*gepy,0.5);
-	  gen_match_dzmj2 = (gez) - ((gex)*gepx+(gey)*gepy)/gept * gepz/gept;
-
-	  XYZTLorentzVector p4Sum;
-	  p4Sum += XYZTLorentzVector(gepx, gepy, gepz, genMuonGroups[q][0]->p4().e() + genMuonGroups[q][1]->p4().e());
-	  gen_match_massmj2= p4Sum.mass();
-
-	}
-	if (q == 1 && matched == 0){
-	  gen_mismatch_massmj1= muJet1_tmp->mass();
-	  gen_mismatch_massmj2= muJet2_tmp->mass();
-	  gen_mismatch_dzmj1 = muJet1_tmp->dz(beamSpot->position());
-	  gen_mismatch_dzmj2 = muJet2_tmp->dz(beamSpot->position());
-	  if (muJet1_tmp->vertexValid()) gen_mismatch_chi2mj1= muJet1_tmp->vertexNormalizedChi2();
-	  if (muJet2_tmp->vertexValid()) gen_mismatch_chi2mj2= muJet2_tmp->vertexNormalizedChi2();
-
-	  gen_match_massmj1= 0;
-	  gen_match_massmj2= 0;
-	  gen_match_dzmj1 = 0;
-	  gen_match_dzmj2 = 0;
-	  gen_match_chi2mj1= 0;
-	  gen_match_chi2mj2= 0;
-	}
-      }
-    }
-  }  
-
 
   if (nMuJets == 2) {
 
@@ -617,18 +591,16 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       ptmj2muons[m]  = (*muJets)[1].muon(m)->pt();
       etamj2muons[m]  = (*muJets)[1].muon(m)->eta();
     }
-
-
   }
 
-  //standard:
+  // Initial vertex variable set (probably no longer needed)
+  // Note: dphi is currently not updated following the iterative approach, although this isn't used anywhere.
 
   if ( muJet1 != NULL && muJet2 != NULL ) {
     dzmj1 = muJet1->dz(beamSpot->position());
     dzmj2 = muJet2->dz(beamSpot->position());
-  }
-
-  if ( muJet1!= NULL && muJet2!= NULL ) {
+    dphi1 = My_dPhi((*muJets)[0].muon(0)->phi(), (*muJets)[0].muon(1)->phi() );
+    dphi2 = My_dPhi((*muJets)[1].muon(0)->phi(), (*muJets)[1].muon(1)->phi() );
     massmj1= muJet1->mass();
     massmj2= muJet2->mass();
   }
@@ -640,100 +612,138 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   edm::Handle<reco::TrackCollection> tracks;
   iEvent.getByLabel("generalTracks", tracks);
 
-   std::vector<reco::TransientTrack> tracksToVertex1;
-   std::vector<reco::TransientTrack> tracksToVertex2;
+  std::vector<reco::TransientTrack> tracksToVertex1;
+  std::vector<reco::TransientTrack> tracksToVertex2;
   
   if ( muJet1 != NULL && muJet2 != NULL ) {     
 
-   edm::ESHandle<TransientTrackBuilder> transientTrackBuilder;
-   iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder", transientTrackBuilder);
+    edm::ESHandle<TransientTrackBuilder> transientTrackBuilder;
+    iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder", transientTrackBuilder);
 
-   for (unsigned int i = 0;  i < (*muJets)[0].numberOfDaughters();  i++) {
-     if ((*muJets)[0].muon(i)->innerTrack().isAvailable()) {
-       tracksToVertex1.push_back(transientTrackBuilder->build((*muJets)[0].muon(i)->innerTrack()));
-     }
-     else if ((*muJets)[0].muon(i)->outerTrack().isAvailable()) {
-       tracksToVertex1.push_back(transientTrackBuilder->build((*muJets)[0].muon(i)->outerTrack()));
-     }
-   }
+    for (unsigned int i = 0;  i < (*muJets)[0].numberOfDaughters();  i++) {
+      if ((*muJets)[0].muon(i)->innerTrack().isAvailable()) {
+	tracksToVertex1.push_back(transientTrackBuilder->build((*muJets)[0].muon(i)->innerTrack()));
+      }
+      else if ((*muJets)[0].muon(i)->outerTrack().isAvailable()) {
+	tracksToVertex1.push_back(transientTrackBuilder->build((*muJets)[0].muon(i)->outerTrack()));
+      }
+    }
 
-   for (unsigned int i = 0;  i < (*muJets)[1].numberOfDaughters();  i++) {
-     if ((*muJets)[1].muon(i)->innerTrack().isAvailable()) {
-       tracksToVertex2.push_back(transientTrackBuilder->build((*muJets)[1].muon(i)->innerTrack()));
-     }
-     else if ((*muJets)[1].muon(i)->outerTrack().isAvailable()) {
-       tracksToVertex2.push_back(transientTrackBuilder->build((*muJets)[1].muon(i)->outerTrack()));
-     }
-   }
+    for (unsigned int i = 0;  i < (*muJets)[1].numberOfDaughters();  i++) {
+      if ((*muJets)[1].muon(i)->innerTrack().isAvailable()) {
+	tracksToVertex2.push_back(transientTrackBuilder->build((*muJets)[1].muon(i)->innerTrack()));
+      }
+      else if ((*muJets)[1].muon(i)->outerTrack().isAvailable()) {
+	tracksToVertex2.push_back(transientTrackBuilder->build((*muJets)[1].muon(i)->outerTrack()));
+      }
+    }
   }
 
-  double min_dz_n = 10000.;
-
+  std::vector<EventContainer> events_arr;
 
   XYZTLorentzVector diMuonTmp;
-
 
   if ( muJet1 != NULL && muJet2 != NULL ) {     
 
     if (nMuJets == 2) {
       if (((*muJets)[0].vertexValid()) && ((*muJets)[1].vertexValid())){
 
-	double A1[3][3];
-	double V1[3][3];
-	double d1[3];
-	d1[0]=0.;
-	d1[1]=0.;
-	d1[2]=0.;
-
-	double A2[3][3];
-	double V2[3][3];
-	double d2[3];
-	d2[0]=0.;
-	d2[1]=0.;
-	d2[2]=0.;
-
+	// Vector to hold vertex covariance matrices:
+	std::vector<std::vector<double> > cA1(3,std::vector<double>(3));
+	std::vector<std::vector<double> > cA2(3,std::vector<double>(3));
 	for (unsigned int a = 0; a < 3; ++a){
 	  for (unsigned int b = 0; b < 3; ++b){
-	    A1[a][b] = (*muJets)[0].vertexCovariance(a,b);
-	    A2[a][b] = (*muJets)[1].vertexCovariance(a,b);
+	    cA1[a][b] = (*muJets)[0].vertexCovariance(a,b);
+	    cA2[a][b] = (*muJets)[1].vertexCovariance(a,b);
 	  }
 	}
 
-	// Perform the decomposition       
-	eigen_decomposition(A1, V1, d1);
-	eigen_decomposition(A2, V2, d2);
-
-
-	double elipiseX1Size = sqrt(d1[0]);
-	double elipiseX2Size = sqrt(d2[0]);
-	double elipiseY1Size = sqrt(d1[1]);
-	double elipiseY2Size = sqrt(d2[1]);
-	double elipiseZ1Size = sqrt(d1[2]);
-	double elipiseZ2Size = sqrt(d2[2]);
+	// Calculate Cholesky decomposition of each covariance matrix
+	std::vector<std::vector<double> > cfA1 = cholesky(cA1);
+	std::vector<std::vector<double> > cfA2 = cholesky(cA2);
 
 	Global3DPoint muonjet1v = muJet1->vertexPoint();
 	Global3DPoint muonjet2v = muJet2->vertexPoint();
 
+	// Define number of vertex iterations:
 	int throws = 100000;
 
-	XYZTLorentzVector final_mj1_vtx;
-	XYZTLorentzVector final_mj2_vtx;
+	// Vectors to hold dz and dxy:
+	std::vector<double> dzdiff_arr;
+	std::vector<double> dxydiff_arr;
+	std::vector<double> dxy_arr_mj1;
+	std::vector<double> dxy_arr_mj2;
 
-
+	// This loop implements iterative vertex approach
 	for (int dice = 0; dice < throws; dice++) {
 
-	  double rnd_X1 = rnd->Gaus(muonjet1v.x(), elipiseX1Size);
-	  double rnd_Y1 = rnd->Gaus(muonjet1v.y(), elipiseY1Size);
-	  double rnd_Z1 = rnd->Gaus(muonjet1v.z(), elipiseZ1Size);
+	  // Sample Gaussian of mean 0 and width 1:
+	  double random1x = rnd->Gaus(0., 1.);
+	  double random1y = rnd->Gaus(0., 1.);
+	  double random1z = rnd->Gaus(0., 1.);
+	  double random2x = rnd->Gaus(0., 1.);
+	  double random2y = rnd->Gaus(0., 1.);
+	  double random2z = rnd->Gaus(0., 1.);
 
-	  double rnd_X2 = rnd->Gaus(muonjet2v.x(), elipiseX2Size);
-	  double rnd_Y2 = rnd->Gaus(muonjet2v.y(), elipiseY2Size);
-	  double rnd_Z2 = rnd->Gaus(muonjet2v.z(), elipiseZ2Size);
+	  double choms_rnd1[3][3];
+	  double choms_rnd2[3][3];
+
+	  for (unsigned int a = 0; a < 3; ++a){
+	    for (unsigned int b = 0; b < 3; ++b){
+	      choms_rnd1[a][b]=0.;
+	      choms_rnd2[a][b]=0.;
+	    }
+	  }
+
+	  // Steps to multiply the Cholesky decomposition matrix by the Gaussian sampled points:
+	  // (All this to be moved to a function)
+
+	  choms_rnd1[0][0] = random1x*cfA1[0][0];
+	  choms_rnd1[0][1] = random1x*cfA1[0][1];
+	  choms_rnd1[0][2] = random1x*cfA1[0][2];
+
+	  choms_rnd1[1][0] = random1y*cfA1[1][0];
+	  choms_rnd1[1][1] = random1y*cfA1[1][1];
+	  choms_rnd1[1][2] = random1y*cfA1[1][2];
+
+	  choms_rnd1[2][0] = random1z*cfA1[2][0];
+	  choms_rnd1[2][1] = random1z*cfA1[2][1];
+	  choms_rnd1[2][2] = random1z*cfA1[2][2];
+
+	  choms_rnd2[0][0] = random2x*cfA2[0][0];
+	  choms_rnd2[0][1] = random2x*cfA2[0][1];
+	  choms_rnd2[0][2] = random2x*cfA2[0][2];
+
+	  choms_rnd2[1][0] = random2y*cfA2[1][0];
+	  choms_rnd2[1][1] = random2y*cfA2[1][1];
+	  choms_rnd2[1][2] = random2y*cfA2[1][2];
+
+	  choms_rnd2[2][0] = random2z*cfA2[2][0];
+	  choms_rnd2[2][1] = random2z*cfA2[2][1];
+	  choms_rnd2[2][2] = random2z*cfA2[2][2];
 
 
-	  Global3DPoint newVtx1(rnd_X1, rnd_Y1, rnd_Z1);
-	  Global3DPoint newVtx2(rnd_X2, rnd_Y2, rnd_Z2);
+	  double x1sum = choms_rnd1[0][0]+choms_rnd1[0][1]+choms_rnd1[0][2];
+	  double y1sum = choms_rnd1[1][0]+choms_rnd1[1][1]+choms_rnd1[1][2];
+	  double z1sum = choms_rnd1[2][0]+choms_rnd1[2][1]+choms_rnd1[2][2];
 
+	  double x2sum = choms_rnd2[0][0]+choms_rnd2[0][1]+choms_rnd2[0][2];
+	  double y2sum = choms_rnd2[1][0]+choms_rnd2[1][1]+choms_rnd2[1][2];
+	  double z2sum = choms_rnd2[2][0]+choms_rnd2[2][1]+choms_rnd2[2][2];
+
+	  // Add the mean (initial vertex position) to the calculated points:
+	  x1sum+=muonjet1v.x();
+	  y1sum+=muonjet1v.y();
+	  z1sum+=muonjet1v.z();
+	  x2sum+=muonjet2v.x();
+	  y2sum+=muonjet2v.y();
+	  z2sum+=muonjet2v.z();
+
+	  // These newly calculated points form the new vertex:
+	  Global3DPoint newVtx1(x1sum, y1sum, z1sum);
+	  Global3DPoint newVtx2(x2sum, y2sum, z2sum);
+
+	  // Refit tracks to new vertex position
 	  std::vector<XYZTLorentzVector> new_vertex1_P4;
 	  std::vector<XYZTLorentzVector> new_vertex2_P4;
 
@@ -748,9 +758,9 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	    new_vertex2_P4.push_back(XYZTLorentzVector(momentum2.x(), momentum2.y(), momentum2.z(), sqrt(momentum2.mag2() + pow((*muJets)[1].muon(i)->mass(), 2))));
 	  }
 
+	  // Update muon jet kinematics to account for the vertex change
 	  XYZTLorentzVector new_mj1_vtx;
 	  XYZTLorentzVector new_mj2_vtx;
-
 	  for (unsigned int i = 0;  i < tracksToVertex1.size();  i++) {
 	    new_mj1_vtx+= new_vertex1_P4[i];
 	  }
@@ -758,55 +768,111 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	    new_mj2_vtx+= new_vertex2_P4[i];
 	  }
 
-	  double rez1 = rnd_Z1-beamSpot->position().z();
-	  double rex1 = rnd_X1-beamSpot->position().x();
-	  double rey1 = rnd_Y1-beamSpot->position().y();
+	  //calculate dz and dxy:
+
+	  double rez1 = z1sum-beamSpot->position().z();
+	  double rex1 = x1sum-beamSpot->position().x();
+	  double rey1 = y1sum-beamSpot->position().y();
 	  double repx1 = new_mj1_vtx.x();
 	  double repy1 = new_mj1_vtx.y();
 	  double repz1 = new_mj1_vtx.z();
 	  double rept1 = pow((new_mj1_vtx.x()*new_mj1_vtx.x())+(new_mj1_vtx.y()*new_mj1_vtx.y()),0.5);			
-
 	  double re_dzmj1 = (rez1) - ((rex1)*repx1+(rey1)*repy1)/rept1 * repz1/rept1;
 
-	  double rez2 = rnd_Z2-beamSpot->position().z();
-	  double rex2 = rnd_X2-beamSpot->position().x();
-	  double rey2 = rnd_Y2-beamSpot->position().y();
+	  double rez2 = z2sum-beamSpot->position().z();
+	  double rex2 = x2sum-beamSpot->position().x();
+	  double rey2 = y2sum-beamSpot->position().y();
 	  double repx2 = new_mj2_vtx.x();
 	  double repy2 = new_mj2_vtx.y();
 	  double repz2 = new_mj2_vtx.z();
 	  double rept2 = pow((new_mj2_vtx.x()*new_mj2_vtx.x())+(new_mj2_vtx.y()*new_mj2_vtx.y()),0.5);
-	    
 	  double re_dzmj2 = (rez2) - ((rex2)*repx2+(rey2)*repy2)/rept2 * repz2/rept2;
 
-	  if (fabs(re_dzmj1-re_dzmj2) < min_dz_n){
+ 	  double dxy1 =( - (rex1) * repy1 + (rey1) * repx1 ) / rept1; 
+ 	  double dxy2 =( - (rex2) * repy2 + (rey2) * repx2 ) / rept2; 
 
-	    massmj1 = new_mj1_vtx.M();
-	    massmj2 = new_mj2_vtx.M();
-	    dzmj1 =  re_dzmj1;
-	    dzmj2 =  re_dzmj2;
-	    min_dz_n = fabs(re_dzmj1-re_dzmj2);	    
+	  dzdiff_arr.push_back(re_dzmj1-re_dzmj2);
+	  dxydiff_arr.push_back(dxy1-dxy2);
 
-	    final_mj1_vtx = new_mj1_vtx;
-	    final_mj2_vtx = new_mj2_vtx;
+	  dxy_arr_mj1.push_back(dxy1);
+	  dxy_arr_mj2.push_back(dxy2);
 
+	  // Store event details into event container struct
+	  EventContainer thisEvent;
+	  thisEvent.set_vtx_dzmj1(re_dzmj1);
+	  thisEvent.set_vtx_dzmj2(re_dzmj2);
+	  thisEvent.set_vtx_dxymj1(dxy1);
+	  thisEvent.set_vtx_dxymj2(dxy2);
+	  thisEvent.set_vtx_massmj1(new_mj1_vtx.M());
+	  thisEvent.set_vtx_massmj2(new_mj2_vtx.M());
+	  thisEvent.set_vtx_mj1(new_mj1_vtx);
+	  thisEvent.set_vtx_mj2(new_mj2_vtx);
+	  thisEvent.set_vtx_1(newVtx1);
+	  thisEvent.set_vtx_2(newVtx2);
 
-	    if (min_dz_n < 0.1){
-	      for ( unsigned int i = 0; i <= 1; i++ ) { 
+	  // Push event back into array
+	  events_arr.push_back(thisEvent);
+	}
+
+	double chi2_dxy1 = 0.;
+	double chi2_dxy2 = 0.;
+	double chi2_dz = 0.;
+	double chi2_dxy = 0.;
+
+	double threshold1 = 10000.0;
+
+	// Loop again over events to calculate chi2 - different values for sigma are taken from gen level
+
+	for(int i = 0; i<throws; ++i) 
+	  {
+	    if (fabs(events_arr[i].get_vtx_1().x())>4 && fabs(events_arr[i].get_vtx_2().x())>4){
+	      chi2_dz = ((dzdiff_arr[i])/(0.035))*((dzdiff_arr[i])/(0.035));
+	      chi2_dxy = ((dxydiff_arr[i])/(0.016))*((dxydiff_arr[i])/(0.016));
+	    }
+	    if (fabs(events_arr[i].get_vtx_1().x())>4 && fabs(events_arr[i].get_vtx_2().x())<4){
+	      chi2_dz = ((dzdiff_arr[i])/(0.02513))*((dzdiff_arr[i])/(0.02513));
+	      chi2_dxy = ((dxydiff_arr[i])/(0.007702))*((dxydiff_arr[i])/(0.007702));
+	    }
+	    if (fabs(events_arr[i].get_vtx_1().x())<4 && fabs(events_arr[i].get_vtx_2().x())>4){
+	      chi2_dz = ((dzdiff_arr[i])/(0.02513))*((dzdiff_arr[i])/(0.02513));
+	      chi2_dxy = ((dxydiff_arr[i])/(0.007702))*((dxydiff_arr[i])/(0.007702));
+	    }
+	    if (fabs(events_arr[i].get_vtx_1().x())<4 && fabs(events_arr[i].get_vtx_2().x())<4){
+	      chi2_dz = ((dzdiff_arr[i])/(0.008912))*((dzdiff_arr[i])/(0.008912));
+	      chi2_dxy = ((dxydiff_arr[i])/(0.004607))*((dxydiff_arr[i])/(0.004607));
+	    }
+	    chi2_dxy1 = ((dxy_arr_mj1[i])/(0.00284177))*((dxy_arr_mj1[i])/(0.00284177));
+	    chi2_dxy2 = ((dxy_arr_mj2[i])/(0.00377043))*((dxy_arr_mj2[i])/(0.00377043));
+
+	    // Check for minimum sum of chi2, store variables for minimum:
+
+	    if (chi2_dz+chi2_dxy < threshold1){ 
+	      threshold1 = chi2_dz+chi2_dxy;
+
+	      massmj1 = events_arr[i].get_vtx_massmj1();
+	      massmj2 = events_arr[i].get_vtx_massmj2();
+	      dzmj1 =  events_arr[i].get_vtx_dzmj1();
+	      dzmj2 =  events_arr[i].get_vtx_dzmj2();
+	      dxymj1 =  events_arr[i].get_vtx_dxymj1();
+	      dxymj2 =  events_arr[i].get_vtx_dxymj2();
+	      
+	      // perform isolation check:
+	      for ( unsigned int j = 0; j <= 1; j++ ) { 
 
 		double isoTmp = 0.0;
 		double n_dz;
-		if ( i == 0 ){
-		  diMuonTmp = final_mj1_vtx;
+		if ( j == 0 ){
+		  diMuonTmp = events_arr[i].get_vtx_mj1();
 		  n_dz = dzmj1;
 		}
-		if ( i == 1 ){
-		  diMuonTmp = final_mj2_vtx;
+		if ( j == 1 ){
+		  diMuonTmp = events_arr[i].get_vtx_mj2();
 		  n_dz = dzmj2;
 		}
 	      
 		for (reco::TrackCollection::const_iterator track = tracks->begin(); track != tracks->end(); ++track) {
 		  bool trackIsMuon = false;
-		  if ( sameTrack( &*track, &*((*muJets)[i].muon(0)->innerTrack()) ) || sameTrack( &*track, &*((*muJets)[i].muon(1)->innerTrack()) ) ) trackIsMuon = true;
+		  if ( sameTrack( &*track, &*((*muJets)[j].muon(0)->innerTrack()) ) || sameTrack( &*track, &*((*muJets)[j].muon(1)->innerTrack()) ) ) trackIsMuon = true;
 		  if (!trackIsMuon) {
 		    double dPhi = My_dPhi( diMuonTmp.phi(), track->phi() );
 		    double dEta = diMuonTmp.eta() - track->eta();
@@ -814,27 +880,24 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 		    if ( dR < 0.4 && track->pt() > 0.5 ) {
 		      double dz = fabs( track->dz(beamSpot->position()) - n_dz);
+
 		      if ( dz < 0.1 ){
 			isoTmp += track->pt();
 		      }
 		    }    
 		  }
 		}
-		if ( i == 0 ) isomj1 = isoTmp;
-		if ( i == 1 ) isomj2 = isoTmp;
+		if ( j == 0 ) isomj1 = isoTmp;
+		if ( j == 1 ) isomj2 = isoTmp;
 	      }
-	    }  
-	  
-
+	    }
 	  }
-	}
 
       }
       else std::cout << "muJet vertex not valid" << std::endl;
     }
   }
 
-  
   edm::Handle<pat::TriggerEvent> triggerEvent;
   iEvent.getByLabel("patTriggerEvent", triggerEvent);
   
@@ -852,37 +915,6 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   if(isDiMuonHLTFired) trigger=1;
   else trigger=0;
 
-
-  
-  // if ( muJet1 != NULL && muJet2 != NULL ) {
-  //   const pat::MultiMuon *diMuonTmp = NULL;
-
-  //   for ( unsigned int i = 1; i <= 2; i++ ) { 
-  //     double isoTmp = 0.0;
-  //     if ( i == 1 ) diMuonTmp = muJet1;
-  //     if ( i == 2 ) diMuonTmp = muJet2;
-
-  //     for (reco::TrackCollection::const_iterator track = tracks->begin(); track != tracks->end(); ++track) {
-  // 	bool trackIsMuon = false;
-  // 	if ( diMuonTmp->sameTrack( &*track, &*(diMuonTmp->muon(0)->innerTrack()) ) || diMuonTmp->sameTrack( &*track, &*(diMuonTmp->muon(1)->innerTrack()) ) ) trackIsMuon = true;
-  // 	if (!trackIsMuon) {
-  // 	  double dPhi = My_dPhi( diMuonTmp->phi(), track->phi() );
-  // 	  double dEta = diMuonTmp->eta() - track->eta();
-  // 	  double dR = sqrt( dPhi*dPhi + dEta*dEta ); 
-  // 	  if ( dR < 0.4 && track->pt() > 0.5 ) {
-  // 	    double dz = fabs( track->dz(beamSpot->position()) - diMuonTmp->dz(beamSpot->position()) );
-  // 	    if ( dz < 0.1 ){
-  // 	      isoTmp += track->pt();
-  // 	    }
-  // 	  }    
-  // 	}
-  //     }
-  //     if ( i == 1 ) isomj1 = isoTmp;
-  //     if ( i == 2 ) isomj2 = isoTmp;
-  //   }
-  // }  
-
-
   edm::Handle<reco::VertexCollection> primaryVertices;
   iEvent.getByLabel("offlinePrimaryVertices", primaryVertices);
   
@@ -892,7 +924,7 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   }
 
   if(isVtxOk) isVtx=1;
-  
+
   AnaTree->Fill();
 
 }
@@ -929,7 +961,6 @@ Analysis::beginJob()
   AnaTree->Branch("ptgenMuonsA1",    &ptgenMuonsA1,   "ptgenMuonsA1[2]/F");
   AnaTree->Branch("etagenMuonsA0",   &etagenMuonsA0,  "etagenMuonsA0[2]/F");
   AnaTree->Branch("etagenMuonsA1",   &etagenMuonsA1,  "etagenMuonsA1[2]/F");
-  
 
   // Reconstructed Muons
 
@@ -947,24 +978,14 @@ Analysis::beginJob()
   AnaTree->Branch("dzmj1",       &dzmj1,  "dzmj1/F");
   AnaTree->Branch("dzmj2",       &dzmj2,  "dzmj2/F");
 
+  AnaTree->Branch("dxymj1",       &dxymj1,  "dxymj1/F");
+  AnaTree->Branch("dxymj2",       &dxymj2,  "dxymj2/F");
+
+  AnaTree->Branch("dphi1",       &dphi1,  "dphi1/F");
+  AnaTree->Branch("dphi2",       &dphi2,  "dphi2/F");
+
   AnaTree->Branch("massmj1",     &massmj1, "massmj1/F");
   AnaTree->Branch("massmj2",     &massmj2, "massmj2/F");
-
-  AnaTree->Branch("gen_match_dzmj1",       &gen_match_dzmj1,  "gen_match_dzmj1/F");
-  AnaTree->Branch("gen_match_dzmj2",       &gen_match_dzmj2,  "gen_match_dzmj2/F");
-  AnaTree->Branch("gen_match_massmj1",     &gen_match_massmj1, "gen_match_massmj1/F");
-  AnaTree->Branch("gen_match_massmj2",     &gen_match_massmj2, "gen_match_massmj2/F");
-  AnaTree->Branch("gen_match_chi2mj1",     &gen_match_chi2mj1, "gen_match_chi2mj1/F");
-  AnaTree->Branch("gen_match_chi2mj2",     &gen_match_chi2mj2, "gen_match_chi2mj2/F");
-
-  AnaTree->Branch("gen_mismatch_dzmj1",       &gen_mismatch_dzmj1,  "gen_mismatch_dzmj1/F");
-  AnaTree->Branch("gen_mismatch_dzmj2",       &gen_mismatch_dzmj2,  "gen_mismatch_dzmj2/F");
-  AnaTree->Branch("gen_mismatch_massmj1",     &gen_mismatch_massmj1, "gen_mismatch_massmj1/F");
-  AnaTree->Branch("gen_mismatch_massmj2",     &gen_mismatch_massmj2, "gen_mismatch_massmj2/F");
-  AnaTree->Branch("gen_mismatch_chi2mj1",     &gen_mismatch_chi2mj1, "gen_mismatch_chi2mj1/F");
-  AnaTree->Branch("gen_mismatch_chi2mj2",     &gen_mismatch_chi2mj2, "gen_mismatch_chi2mj2/F");
-
-
 
   AnaTree->Branch("isomj1",     &isomj1, "isomj1/F");
   AnaTree->Branch("isomj2",     &isomj2, "isomj2/F");
