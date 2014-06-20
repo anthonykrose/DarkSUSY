@@ -825,22 +825,41 @@ Analysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 	for(int i = 0; i<throws; ++i) 
 	  {
-	    if (fabs(events_arr[i].get_vtx_1().x())>4 && fabs(events_arr[i].get_vtx_2().x())>4){
-	      chi2_dz = ((dzdiff_arr[i])/(0.035))*((dzdiff_arr[i])/(0.035));
-	      chi2_dxy = ((dxydiff_arr[i])/(0.016))*((dxydiff_arr[i])/(0.016));
+
+
+	    bool pix1 = false;
+	    bool pix2 = false;
+
+	    if (((events_arr[i].get_vtx_1().x()*events_arr[i].get_vtx_1().x())+(events_arr[i].get_vtx_1().y()*events_arr[i].get_vtx_1().y()))>16){
+	      pix1 = true;
 	    }
-	    if (fabs(events_arr[i].get_vtx_1().x())>4 && fabs(events_arr[i].get_vtx_2().x())<4){
-	      chi2_dz = ((dzdiff_arr[i])/(0.02513))*((dzdiff_arr[i])/(0.02513));
-	      chi2_dxy = ((dxydiff_arr[i])/(0.007702))*((dxydiff_arr[i])/(0.007702));
+	    if  (fabs(events_arr[i].get_vtx_1().z()) > 34.5 ){
+	      pix1 = true;
 	    }
-	    if (fabs(events_arr[i].get_vtx_1().x())<4 && fabs(events_arr[i].get_vtx_2().x())>4){
-	      chi2_dz = ((dzdiff_arr[i])/(0.02513))*((dzdiff_arr[i])/(0.02513));
-	      chi2_dxy = ((dxydiff_arr[i])/(0.007702))*((dxydiff_arr[i])/(0.007702));
+	    if (((events_arr[i].get_vtx_2().x()*events_arr[i].get_vtx_2().x())+(events_arr[i].get_vtx_2().y()*events_arr[i].get_vtx_2().y()))>16){
+	      pix2 = true;
 	    }
-	    if (fabs(events_arr[i].get_vtx_1().x())<4 && fabs(events_arr[i].get_vtx_2().x())<4){
-	      chi2_dz = ((dzdiff_arr[i])/(0.008912))*((dzdiff_arr[i])/(0.008912));
-	      chi2_dxy = ((dxydiff_arr[i])/(0.004607))*((dxydiff_arr[i])/(0.004607));
+	    if  (fabs(events_arr[i].get_vtx_2().z()) > 34.5 ){
+	      pix2 = true;
 	    }
+
+	    if (pix1 && pix2){
+	      chi2_dz = ((dzdiff_arr[i])/(0.03276))*((dzdiff_arr[i])/(0.03276));
+	      chi2_dxy = ((dxydiff_arr[i])/(0.009981))*((dxydiff_arr[i])/(0.009981));
+	    }
+	    if (pix1 && !pix2){
+	      chi2_dz = ((dzdiff_arr[i])/(0.01785))*((dzdiff_arr[i])/(0.01785));
+	      chi2_dxy = ((dxydiff_arr[i])/(0.005864))*((dxydiff_arr[i])/(0.005864));
+	    }
+	    if (!pix1 && pix2){
+	      chi2_dz = ((dzdiff_arr[i])/(0.01785))*((dzdiff_arr[i])/(0.01785));
+	      chi2_dxy = ((dxydiff_arr[i])/(0.005864))*((dxydiff_arr[i])/(0.005864));
+	    }
+	    if (!pix1 && !pix2){
+	      chi2_dz = ((dzdiff_arr[i])/(0.003264))*((dzdiff_arr[i])/(0.003264));
+	      chi2_dxy = ((dxydiff_arr[i])/(0.002386))*((dxydiff_arr[i])/(0.002386));
+	    }
+
 	    chi2_dxy1 = ((dxy_arr_mj1[i])/(0.00284177))*((dxy_arr_mj1[i])/(0.00284177));
 	    chi2_dxy2 = ((dxy_arr_mj2[i])/(0.00377043))*((dxy_arr_mj2[i])/(0.00377043));
 
